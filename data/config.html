@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>vhih Configuration</title>
+  <style>
+    body { font-family: sans-serif; margin: 20px; max-width: 800px; }
+    .section { border: 1px solid #ccc; padding: 15px; margin-bottom: 20px; border-radius: 8px; background: #f9f9f9; }
+    .section h2 { margin-top: 0; }
+    label { display: block; margin: 5px 0; }
+    input, select { padding: 5px; margin-top: 2px; width: 100%; box-sizing: border-box; }
+    .sensor { margin-bottom: 10px; border-bottom: 1px dashed #ccc; padding-bottom: 10px; }
+  </style>
+</head>
+<body>
+  <h1>vhih Configuration</h1>
+
+  <div class="section">
+    <h2>System Info</h2>
+    <p><b>Firmware:</b> <span id="fwver">?</span></p>
+    <p><b>Title:</b> <span id="title">vhih ESP</span></p>
+  </div>
+
+  <div class="section">
+    <h2>System Configuration</h2>
+    <label><input type="checkbox" id="cfgInSTA"> Enable configuration in standard mode</label>
+    <h3>Backup & Restore</h3>
+    <p>
+      <a href="/config.json" download>🡇 Download configuration</a><br><br>
+      <input type="file" id="cfgfile">
+      <button onclick="uploadConfig()">Upload</button>
+    </p>
+  </div>
+
+  <div class="section">
+    <h2>WiFi Configuration</h2>
+    <label>SSID: <input type="text" id="ssid"></label>
+    <label>Password: <input type="password" id="pw"></label>
+    <label>Client IP: <input type="text" id="ip"></label>
+    <label>Gateway IP: <input type="text" id="gw"></label>
+    <label>SubNet Mask: <input type="text" id="mask"></label>
+  </div>
+
+  <div class="section">
+    <h2>Sensor Configuration</h2>
+    <div id="sensorList"></div>
+    <button onclick="saveConfig()">💾 Save Configuration</button>
+  </div>
+
+  <div class="section">
+    <h2>OTA Update</h2>
+    <form method="POST" action="/ota" enctype="multipart/form-data">
+      <input type="file" name="firmware">
+      <input type="submit" value="Start Update">
+    </form>
+  </div>
+
+<script>
+function uploadConfig() {
+  const fileInput = document.getElementById("cfgfile");
+  const file = fileInput.files[0];
+  if (!file) return alert("No file selected");
+
+  const reader = new FileReader();
+  reader.onload = function () {
+    fetch("/config.json", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: reader.result
+    }).then(res => {
+      if (res.ok) alert("Configuration uploaded successfully!");
+      else alert("Upload failed.");
+    });
+  };
+  reader.readAsText(file);
+}
+
+let list = document.getElementById("sensorList");
+
+function renderSensors(sensors) {
+  list.innerHTML = "";
+  if (!sensors || sensors.length === 0) {
+    sensors = [{
+      active: true,
+      name: "",
+      homeeID: 0,
+      type: "Window-Sensor",
+      address: 0,
+      signalOn: 0,
+      signalOff: 0,
+      signalAlarm: 0,
+      signalBattery: 0
+    }];
+  }
+
+  sensors.forEach((s, i) => {
+    let row = document.createElement("div");
+    row.className = "sensor";
+    row.dataset.index = i;
+    row.innerHTML = `
+      <b>Sensor ${i + 1}</b><br>
+      <label><input type="checkbox" class="active" ${s.active ? "checked" : ""}> Active</label>
+      <label>Name: <input type="text" class="name" value="${s.name || ""}"></label>
+      <label>homee ID: <input type="number" class="homeeID" value="${s.homeeID || 0}"></label>
+      <label>Type:
+        <select class="type">
+          <option value="Window-Sensor" ${s.type === "Window-Sensor" ? "selected" : ""}>Window Sensor</option>
+          <option value="Button" ${s.type === "Button" ? "selected" : ""}>Button</option>
+        </select>
+      </label>
+      <label>Address: <input type="number" class="address" value="${s.address || 0}"></label>
+      <label>Signal ON: <input type="number" class="signalOn" value="${s.signalOn || 0}"></label>
+      <label>Signal OFF: <input type="number" class="signalOff" value="${s.signalOff || 0}"></label>
+      <label>Signal ALARM: <input type="number" class="signalAlarm" value="${s.signalAlarm || 0}"></label>
+      <label>Signal BATTERY: <input type="number" class="signalBattery" value="${s.signalBattery || 0}"></label>
+      <button onclick="addSensor(${i})">+</button>
+      ${i > 0 ? `<button onclick="removeSensor(${i})">-</button>` : ""}
+      <hr>
+    `;
+    list.appendChild(row);
+  });
+}
+
+function collectSensors() {
+  const sensors = [];
+  document.querySelectorAll(".sensor").forEach(s => {
+    sensors.push({
+      active: s.querySelector(".active").checked,
+      name: s.querySelector(".name").value.trim(),
+      homeeID: parseInt(s.querySelector(".homeeID").value),
+      type: s.querySelector(".type").value,
+      address: parseInt(s.querySelector(".address").value),
+      signalOn: parseInt(s.querySelector(".signalOn").value),
+      signalOff: parseInt(s.querySelector(".signalOff").value),
+      signalAlarm: parseInt(s.querySelector(".signalAlarm").value),
+      signalBattery: parseInt(s.querySelector(".signalBattery").value)
+    });
+  });
+  return sensors;
+}
+
+function addSensor(index) {
+  let sensors = collectSensors();
+  sensors.splice(index + 1, 0, {
+    active: true,
+    name: "", homeeID: 0, type: "Window-Sensor",
+    address: 0, signalOn: 0, signalOff: 0,
+    signalAlarm: 0, signalBattery: 0
+  });
+  renderSensors(sensors);
+}
+
+function removeSensor(index) {
+  let sensors = collectSensors();
+  sensors.splice(index, 1);
+  renderSensors(sensors);
+}
+
+function saveConfig() {
+  const data = {
+    system: { cfgInSTA: document.getElementById("cfgInSTA").checked },
+    wifi: {
+      ssid: document.getElementById("ssid").value,
+      pw: document.getElementById("pw").value,
+      ip: document.getElementById("ip").value,
+      gw: document.getElementById("gw").value,
+      mask: document.getElementById("mask").value
+    },
+    sensors: collectSensors()
+  };
+
+  fetch("/config", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data)
+  }).then(() => alert("Configuration saved successfully."));
+}
+
+fetch("/config")
+  .then(res => res.json())
+  .then(json => {
+    document.getElementById("fwver").textContent = json.fw || "?";
+    document.getElementById("cfgInSTA").checked = json.system.cfgInSTA;
+    document.getElementById("ssid").value = json.wifi.ssid;
+    document.getElementById("pw").value = json.wifi.pw;
+    document.getElementById("ip").value = json.wifi.ip;
+    document.getElementById("gw").value = json.wifi.gw;
+    document.getElementById("mask").value = json.wifi.mask;
+    renderSensors(json.sensors || []);
+  });
+</script>
+</body>
+</html>
