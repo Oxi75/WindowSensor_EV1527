@@ -29,7 +29,7 @@
 #define PIN_LED      GPIO_NUM_2            // GPIO pin for the LED
 #define PIN_RECEIVER GPIO_NUM_15
 
-const double FW_VERSION = 0.04;
+const double FW_VERSION = 0.05;
 String FW_VERSION_STR = String(FW_VERSION, 2);
 
 #define CANodeProfileOneButtonRemote 20
@@ -103,7 +103,28 @@ void ledBlink()
     }
 }
 
+//Sensor Daten
+struct LastSignal
+{
+    String sensorAddress;
+    String sensorData;
+    uint8_t bitLength;
+    uint32_t decimal;
+    String binary;
+    String protocol;
+};
 
+// Globale Variable mit dem letzten Signal (aktualisierst du in deinem Empfangscode)
+LastSignal lastSignal = {
+    .sensorAddress = "FFFFFFF",
+    .sensorData = "0",
+    .bitLength = 24,
+    .decimal = 0,
+    .binary = "101010111100110111001101",
+    .protocol = "1"
+};
+
+   
 
 //WiFi realted functions
 AsyncWebServer server(80);
@@ -421,7 +442,7 @@ void RCSwitch_setup()
 }
 
 
-bool RCSwitch_check()
+bool RCSwitch_check(bool HomeeEnabled)
 {
   static uint32_t lastValue = 0; // Letzter empfangener Wert
   static uint32_t lastValueTime = 0; // Zeitstempel des letzten empfangenen Werts
@@ -430,8 +451,11 @@ bool RCSwitch_check()
 
   if (!mySwitch.available()) return false; // Keine Daten verfügbar
 
+  
   unsigned long value = mySwitch.getReceivedValue();    
+  unsigned long protocol = mySwitch.getReceivedProtocol(); // Protokoll des empfangenen Signals
   mySwitch.resetAvailable(); // Verfügbare Daten zurücksetzen
+
   if (value == 0) return false; // Kein gültiger Wert empfangen
 
   if (value == lastValue && (currentTime - lastValueTime) < 500)
@@ -439,6 +463,18 @@ bool RCSwitch_check()
     lastValueTime = currentTime; // Zeitstempel aktualisieren, wenn der Wert gleich bleibt
     return false;                // Wert ist gleich dem letzten, also ignorieren
   }
+
+  lastSignal.sensorAddress = String(value >> 4, HEX); // Adresse aus den oberen 20 Bit extrahieren
+  lastSignal.sensorAddress.toUpperCase(); // Adresse in Großbuchstaben umwandeln
+  // Setze die restlichen Felder des lastSignal-Objekts
+  lastSignal.sensorData = String(value & 0x000F, DEC); // Extrahiere die unteren 4 Bit für den Signalwert
+//  lastSignal.bitLength = mySwitch.getReceivedBitlength();
+  lastSignal.decimal = value;
+  lastSignal.binary = String(value, BIN);
+  lastSignal.protocol = String(protocol);
+  Serial.printf("[RCSWITCH] Received value: %05x, Bitlength: %d, Binary: %s, Protocol: %s\n", 
+                lastSignal.decimal, lastSignal.bitLength, lastSignal.binary.c_str(), lastSignal.protocol.c_str());  
+
 
   lastValue = value;           // Neuen Wert speichern
   lastValueTime = currentTime; // Zeitstempel aktualisieren
@@ -462,7 +498,7 @@ bool RCSwitch_check()
       {
         sensorFound = true; // Sensor gefunden
         Serial.printf("Sensor %s has send value %d\n", String(addr), value & 0x000F); // Ausgabe der Adresse und des Wertes
-
+        if (!HomeeEnabled) break; // Wenn Homee nicht aktiviert ist, breche die Schleife ab
 
         if ((value & 0x000F) == config.sensors[sns].signalOn)      homee_updateValues(sns, SensorSignalOpen);  // Sensor ist offen
         if ((value & 0x000F) == config.sensors[sns].signalOff)     homee_updateValues(sns, SensorSignalClosed);  // Sensor ist geschlossen
@@ -481,7 +517,7 @@ bool RCSwitch_check()
       {
         sensorFound = true; // Sensor gefunden
         Serial.printf("Button %d was pushed\n", value); // Ausgabe der Adresse und des Wertes
-        homee_updateValues(sns, 0);
+        if (HomeeEnabled) homee_updateValues(sns, 0);
         break; // Sensor gefunden -> For-Schleife beenden
       }
 
@@ -543,35 +579,39 @@ void setup()
 
   server.serveStatic("/config.html", LittleFS, "/config.html");
 
-  server.on("/config", HTTP_GET, [](AsyncWebServerRequest* req) {
-    DynamicJsonDocument doc(2048);
-    doc["fw"] = FW_VERSION_STR;
-    doc["system"]["cfgInSTA"] = config.cfgInSTA;
-    doc["wifi"]["ssid"] = config.ssid;
-    doc["wifi"]["pw"] = config.password;
-    doc["wifi"]["ip"] = config.clientIP;
-    doc["wifi"]["gw"] = config.gatewayIP;
-    doc["wifi"]["mask"] = config.subnet;
+server.on("/config", HTTP_GET, [](AsyncWebServerRequest* req) {
+  DynamicJsonDocument doc(4096);
+  doc["fw"] = FW_VERSION_STR;
+  doc["system"]["cfgInSTA"] = config.cfgInSTA;
+  doc["wifi"]["ssid"] = config.ssid;
+  doc["wifi"]["pw"] = config.password;
+  doc["wifi"]["ip"] = config.clientIP;
+  doc["wifi"]["gw"] = config.gatewayIP;
+  doc["wifi"]["mask"] = config.subnet;
 
-    JsonArray arr = doc.createNestedArray("sensors");
-    for (int i = 0; i < MAX_SENSORS; i++) {
-      if (config.sensors[i].name == "") continue;
-      JsonObject s = arr.createNestedObject();
-      s["active"] = config.sensors[i].active;
-      s["name"] = config.sensors[i].name;
-      s["homeeID"] = config.sensors[i].homeeID;
-      s["type"] = config.sensors[i].type;
-      s["address"] = config.sensors[i].address;
-      s["signalOn"] = config.sensors[i].signalOn;
-      s["signalOff"] = config.sensors[i].signalOff;
-      s["signalAlarm"] = config.sensors[i].signalAlarm;
-      s["signalBattery"] = config.sensors[i].signalBattery;
-    }
+  JsonArray arr = doc.createNestedArray("sensors");
+  for (int i = 0; i < MAX_SENSORS; i++) {
+    if (config.sensors[i].name == "") continue;
+    JsonObject s = arr.createNestedObject();
+    s["active"] = config.sensors[i].active;
+    s["name"] = config.sensors[i].name;
+    s["homeeID"] = config.sensors[i].homeeID;
+    s["type"] = config.sensors[i].type;
+    s["address"] = String(config.sensors[i].address, HEX);
+    s["signalOn"] = config.sensors[i].signalOn;
+    s["signalOff"] = config.sensors[i].signalOff;
+    s["signalAlarm"] = config.sensors[i].signalAlarm;
+    s["signalBattery"] = config.sensors[i].signalBattery;
+    s["autoOffDelay"] = config.sensors[i].autoOffDelay;
+    s["signalAlarmOffDelay"] = config.sensors[i].signalAlarmOffDelay;
+    s["signalBatteryOffDelay"] = config.sensors[i].signalBatteryOffDelay;
+  }
 
-    String out;
-    serializeJson(doc, out);
-    req->send(200, "application/json", out);
-  });
+  String out;
+  serializeJson(doc, out);
+  req->send(200, "application/json", out);
+});
+
 
   server.on("/config.json", HTTP_GET, [](AsyncWebServerRequest* req) {
     req->send(LittleFS, CONFIG_FILE, "application/json");
@@ -593,74 +633,132 @@ void setup()
   });
 
   server.on("/config", HTTP_POST, [](AsyncWebServerRequest* req) {}, NULL,
-  [](AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t, size_t) {
-    DynamicJsonDocument doc(4096);
-    if (deserializeJson(doc, data, len)) {
-      Serial.println("[CONFIG] Failed to parse JSON.");
-      return;
+[](AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t, size_t) {
+  DynamicJsonDocument doc(8192);
+  if (deserializeJson(doc, data, len)) {
+    Serial.println("[CONFIG] Failed to parse JSON.");
+    return;
+  }
+
+  config.cfgInSTA = doc["system"]["cfgInSTA"];
+  config.ssid = doc["wifi"]["ssid"].as<String>();
+  config.password = doc["wifi"]["pw"].as<String>();
+  config.clientIP = doc["wifi"]["ip"].as<String>();
+  config.gatewayIP = doc["wifi"]["gw"].as<String>();
+  config.subnet = doc["wifi"]["mask"].as<String>();
+
+  JsonArray arr = doc["sensors"].as<JsonArray>();
+  uint16_t usedIDs[32] = {0};
+  int valid = 0;
+
+  for (int i = 0; i < arr.size() && i < MAX_SENSORS; i++) {
+    JsonObject s = arr[i];
+    const char* namePtr = s["name"].as<const char*>();
+    String name;
+
+    if (namePtr) {
+      name = String(namePtr);
+      name.trim();
     }
 
-    config.cfgInSTA = doc["system"]["cfgInSTA"];
-    config.ssid = doc["wifi"]["ssid"].as<String>();
-    config.password = doc["wifi"]["pw"].as<String>();
-    config.clientIP = doc["wifi"]["ip"].as<String>();
-    config.gatewayIP = doc["wifi"]["gw"].as<String>();
-    config.subnet = doc["wifi"]["mask"].as<String>();
-
-    JsonArray arr = doc["sensors"].as<JsonArray>();
-    uint16_t usedIDs[32] = {0};
-    int valid = 0;
-
-    for (int i = 0; i < arr.size() && i < MAX_SENSORS; i++) {
-      JsonObject s = arr[i];
-      const char* namePtr = s["name"].as<const char*>();
-      String name;
-
-      if (namePtr) {
-        name = String(namePtr);
-        name.trim();
-      }
-
-      if (!namePtr || (name == "")) {
-        Serial.printf("[WARN] Sensor %d has invalid name, skipping.\n", i);
-        continue;
-      }
-
-      uint16_t id = s["homeeID"] | 0;
-      if (id == 0) {
-        Serial.printf("[WARN] Sensor %d has invalid ID, skipping.\n", i);
-        continue;
-      }
-
-      bool duplicate = false;
-      for (int k = 0; k < valid; k++) {
-        if (usedIDs[k] == id) duplicate = true;
-      }
-      if (duplicate) {
-        Serial.printf("[WARN] Duplicate homee-ID (%d), sensor %d skipped.\n", id, i);
-        continue;
-      }
-      usedIDs[valid++] = id;
-
-      auto& sens = config.sensors[i];
-      sens.name = name;
-      sens.homeeID = id;
-      sens.type = s["type"].as<String>();
-      sens.address = s["address"] | 0;
-      sens.signalOn = s["signalOn"] | 0;
-      sens.signalOff = s["signalOff"] | 0;
-      sens.signalAlarm = s["signalAlarm"] | 0;
-      sens.signalBattery = s["signalBattery"] | 0;
-      sens.active = true;
+    if (!namePtr || name == "") {
+      Serial.printf("[WARN] Sensor %d has invalid name, skipping.\n", i);
+      continue;
     }
 
-    for (int i = arr.size(); i < MAX_SENSORS; i++) {
-      config.sensors[i].name = "";
-      config.sensors[i].active = false;
+    uint16_t id = s["homeeID"] | 0;
+    if (id == 0) {
+      Serial.printf("[WARN] Sensor %d has invalid ID, skipping.\n", i);
+      continue;
     }
 
-    config.save();
-    Serial.println("[CONFIG] Configuration saved.");
+    bool duplicate = false;
+    for (int k = 0; k < valid; k++) {
+      if (usedIDs[k] == id) duplicate = true;
+    }
+    if (duplicate) {
+      Serial.printf("[WARN] Duplicate homee-ID (%d), sensor %d skipped.\n", id, i);
+      continue;
+    }
+    usedIDs[valid++] = id;
+
+    auto& sens = config.sensors[i];
+    sens.name = name;
+    sens.homeeID = id;
+    sens.type = s["type"].as<String>();
+
+    const char* addrStr = s["address"].as<const char*>();
+    sens.address = addrStr ? strtoul(addrStr, NULL, 16) : 0;
+
+    sens.signalOn = s["signalOn"] | 0;
+    sens.signalOff = s["signalOff"] | 0;
+    sens.signalAlarm = s["signalAlarm"] | 0;
+    sens.signalBattery = s["signalBattery"] | 0;
+    sens.autoOffDelay = s["autoOffDelay"] | 0;
+    sens.signalAlarmOffDelay = s["signalAlarmOffDelay"] | 0;
+    sens.signalBatteryOffDelay = s["signalBatteryOffDelay"] | 0;
+    sens.active = true;
+  }
+
+  for (int i = arr.size(); i < MAX_SENSORS; i++) {
+    config.sensors[i].name = "";
+    config.sensors[i].active = false;
+  }
+
+  // Prüfe, ob noch mindestens ein aktiver Sensor vorhanden ist
+  int activeCount = 0;
+  for (int i = 0; i < MAX_SENSORS; i++) {
+    if (config.sensors[i].active) activeCount++;
+  }
+  if (activeCount == 0) {
+    Serial.println("[CONFIG] At least one sensor must remain configured.");
+    return;
+  }
+
+  config.save();
+  Serial.println("[CONFIG] Configuration saved.");
+});
+
+
+  server.on("/saveFlag", HTTP_GET, [](AsyncWebServerRequest *request)
+  {
+      if (request->hasParam("enabled"))
+      {
+          bool enabled = request->getParam("enabled")->value() == "true";
+          config.cfgInStandardMode = enabled;
+          config.save();  // bestehende Funktion zur Speicherung
+          request->send(200, "text/plain", "OK");
+          Serial.printf("[CONFIG] cfgInStandardMode set to %s\n", enabled ? "true" : "false");
+      }
+      else
+      {
+          request->send(400, "text/plain", "Missing parameter");
+      }
+  });
+
+  server.on("/restart", HTTP_GET, [](AsyncWebServerRequest *request)
+  {
+      request->send(200, "text/plain", "Restarting...");
+      Serial.println("[RESTART] Restarting ESP32 in 100ms...");
+      delay(100);
+      ESP.restart();
+  });
+
+// Server-Handler für die Anzeige im Webinterface
+  server.on("/lastsignal", HTTP_GET, [](AsyncWebServerRequest* request)
+  {
+      AsyncResponseStream* response = request->beginResponseStream("application/json");
+      StaticJsonDocument<256> doc;
+
+      doc["sensorAddress"] = lastSignal.sensorAddress;
+      doc["sensorData"]    = lastSignal.sensorData;
+      doc["bitLength"]     = lastSignal.bitLength;
+      doc["decimal"]       = lastSignal.decimal;
+      doc["binary"]        = lastSignal.binary;
+      doc["protocol"]      = lastSignal.protocol;
+
+      serializeJson(doc, *response);
+      request->send(response);
   });
 
   server.on("/", HTTP_GET, [](AsyncWebServerRequest* req) {
@@ -690,6 +788,11 @@ void loop()
       firstCall = false;
     }
 
+//      WiFi_check();
+      RCSwitch_check(!isAPMode);
+      yield();  //delay is not allowed here, because homee connection would become unstable
+
+return;      
     if (isAPMode)
     {
 
@@ -697,7 +800,7 @@ void loop()
     else
     {
       WiFi_check();
-      RCSwitch_check();
+      RCSwitch_check(!isAPMode);
       yield();  //delay is not allowed here, because homee connection would become unstable
     }
 }

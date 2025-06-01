@@ -26,6 +26,8 @@ bool ConfigManager::load()
   clientIP  = doc["wifi"]["ip"] | "192.168.1.100";
   gatewayIP  = doc["wifi"]["gw"] | "192.168.1.1";
   subnet   = doc["wifi"]["mask"] | "255.255.255.0";
+  cfgInSTA = doc["system"]["cfgInSTA"] | false;
+  cfgInStandardMode = doc["system"]["cfgInStandardMode"] | false;  
 
   JsonArray arr = doc["sensors"].as<JsonArray>();
   int i = 0;
@@ -65,7 +67,8 @@ bool ConfigManager::load()
   return true;
 }
 
-bool ConfigManager::save() {
+bool ConfigManager::save()
+{
   DynamicJsonDocument doc(4096);
 
   doc["system"]["cfgInSTA"] = cfgInSTA;
@@ -74,6 +77,8 @@ bool ConfigManager::save() {
   doc["wifi"]["ip"]   = clientIP;
   doc["wifi"]["gw"]   = gatewayIP;
   doc["wifi"]["mask"] = subnet;
+  doc["system"]["cfgInSTA"] = cfgInSTA;
+  doc["system"]["cfgInStandardMode"] = cfgInStandardMode;  
 
   JsonArray arr = doc.createNestedArray("sensors");
   for (int i = 0; i < MAX_SENSORS; i++) {

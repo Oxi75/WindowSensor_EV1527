@@ -4,32 +4,57 @@
   <meta charset="UTF-8">
   <title>vhih Configuration</title>
   <style>
-    body { font-family: sans-serif; margin: 20px; max-width: 800px; }
-    .section { border: 1px solid #ccc; padding: 15px; margin-bottom: 20px; border-radius: 8px; background: #f9f9f9; }
-    .section h2 { margin-top: 0; }
-    label { display: block; margin: 5px 0; }
-    input, select { padding: 5px; margin-top: 2px; width: 100%; box-sizing: border-box; }
-    .sensor { margin-bottom: 10px; border-bottom: 1px dashed #ccc; padding-bottom: 10px; }
+    body {
+      font-family: sans-serif;
+      margin: 20px;
+      max-width: 900px;
+    }
+    .section {
+      border: 1px solid #ccc;
+      padding: 15px;
+      margin-bottom: 20px;
+      border-radius: 8px;
+      background: #f9f9f9;
+    }
+    .section h2 {
+      margin-top: 0;
+    }
+    label {
+      display: block;
+      margin: 5px 0;
+    }
+    input, select {
+      padding: 5px;
+      margin-top: 2px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    .sensor {
+      margin-bottom: 10px;
+      border-bottom: 1px dashed #ccc;
+      padding-bottom: 10px;
+    }
+    .timestamp {
+      font-size: 0.9em;
+      color: #666;
+    }
   </style>
 </head>
 <body>
   <h1>vhih Configuration</h1>
 
   <div class="section">
-    <h2>System Info</h2>
+    <h2>System</h2>
     <p><b>Firmware:</b> <span id="fwver">?</span></p>
-    <p><b>Title:</b> <span id="title">vhih ESP</span></p>
-  </div>
-
-  <div class="section">
-    <h2>System Configuration</h2>
     <label><input type="checkbox" id="cfgInSTA"> Enable configuration in standard mode</label>
-    <h3>Backup & Restore</h3>
-    <p>
-      <a href="/config.json" download>🡇 Download configuration</a><br><br>
-      <input type="file" id="cfgfile">
-      <button onclick="uploadConfig()">Upload</button>
-    </p>
+    <button onclick="fetch('/restart')">Restart</button>
+
+    <hr>
+    <h3>OTA Update</h3>
+    <form method="POST" action="/update" enctype="multipart/form-data">
+      <input type="file" name="update">
+      <input type="submit" value="Update Firmware">
+    </form>
   </div>
 
   <div class="section">
@@ -42,17 +67,24 @@
   </div>
 
   <div class="section">
-    <h2>Sensor Configuration</h2>
-    <div id="sensorList"></div>
-    <button onclick="saveConfig()">💾 Save Configuration</button>
+    <h2>Last Received Signal</h2>
+    <label>Sensor Address: <input type="text" id="sensorAddress" readonly></label>
+    <label>Value: <input type="text" id="sensorData" readonly></label>
+    <label>Bit Length: <input type="text" id="bitLength" readonly></label>
+    <label>Decimal: <input type="text" id="decimal" readonly></label>
+    <label>Binary: <input type="text" id="binary" readonly></label>
+    <label>Protocol: <input type="text" id="protocol" readonly></label>
+    <p class="timestamp" id="timestamp"></p>
   </div>
 
   <div class="section">
-    <h2>OTA Update</h2>
-    <form method="POST" action="/ota" enctype="multipart/form-data">
-      <input type="file" name="firmware">
-      <input type="submit" value="Start Update">
-    </form>
+    <h2>Sensor Configuration</h2>
+    <div id="sensorList"></div>
+    <button onclick="saveConfig()">💾 Save Configuration</button>
+    <hr>
+    <a href="/config.json" download>🡇 Download configuration</a><br><br>
+    <input type="file" id="cfgfile">
+    <button onclick="uploadConfig()">Upload Config File</button>
   </div>
 
 <script>
@@ -60,7 +92,6 @@ function uploadConfig() {
   const fileInput = document.getElementById("cfgfile");
   const file = fileInput.files[0];
   if (!file) return alert("No file selected");
-
   const reader = new FileReader();
   reader.onload = function () {
     fetch("/config.json", {
@@ -68,8 +99,7 @@ function uploadConfig() {
       headers: { "Content-Type": "application/json" },
       body: reader.result
     }).then(res => {
-      if (res.ok) alert("Configuration uploaded successfully!");
-      else alert("Upload failed.");
+      alert(res.ok ? "Configuration uploaded successfully!" : "Upload failed.");
     });
   };
   reader.readAsText(file);
@@ -80,17 +110,7 @@ let list = document.getElementById("sensorList");
 function renderSensors(sensors) {
   list.innerHTML = "";
   if (!sensors || sensors.length === 0) {
-    sensors = [{
-      active: true,
-      name: "",
-      homeeID: 0,
-      type: "Window-Sensor",
-      address: 0,
-      signalOn: 0,
-      signalOff: 0,
-      signalAlarm: 0,
-      signalBattery: 0
-    }];
+    sensors = [emptySensor()];
   }
 
   sensors.forEach((s, i) => {
@@ -101,24 +121,47 @@ function renderSensors(sensors) {
       <b>Sensor ${i + 1}</b><br>
       <label><input type="checkbox" class="active" ${s.active ? "checked" : ""}> Active</label>
       <label>Name: <input type="text" class="name" value="${s.name || ""}"></label>
-      <label>homee ID: <input type="number" class="homeeID" value="${s.homeeID || 0}"></label>
+      <label>homee ID: <input type="number" class="homeeID" min="1" max="65535" value="${s.homeeID || ""}"></label>
       <label>Type:
         <select class="type">
-          <option value="Window-Sensor" ${s.type === "Window-Sensor" ? "selected" : ""}>Window Sensor</option>
+          <option value="Contact" ${s.type === "Contact" ? "selected" : ""}>Contact</option>
+          <option value="Motion" ${s.type === "Motion" ? "selected" : ""}>Motion</option>
+          <option value="Smoke" ${s.type === "Smoke" ? "selected" : ""}>Smoke</option>
+          <option value="Water" ${s.type === "Water" ? "selected" : ""}>Water</option>
           <option value="Button" ${s.type === "Button" ? "selected" : ""}>Button</option>
         </select>
       </label>
-      <label>Address: <input type="number" class="address" value="${s.address || 0}"></label>
-      <label>Signal ON: <input type="number" class="signalOn" value="${s.signalOn || 0}"></label>
-      <label>Signal OFF: <input type="number" class="signalOff" value="${s.signalOff || 0}"></label>
-      <label>Signal ALARM: <input type="number" class="signalAlarm" value="${s.signalAlarm || 0}"></label>
-      <label>Signal BATTERY: <input type="number" class="signalBattery" value="${s.signalBattery || 0}"></label>
+      <label>Address (hex): <input type="text" class="address" value="${(s.address ?? 0).toString(16)}" pattern="[0-9a-fA-F]{1,8}" title="Hex value"></label>
+      <label>Signal ON: <input type="number" class="signalOn" value="${s.signalOn ?? 0}"></label>
+      <label>Signal OFF: <input type="number" class="signalOff" value="${s.signalOff ?? 0}"></label>
+      <label>Signal ALARM: <input type="number" class="signalAlarm" value="${s.signalAlarm ?? 0}"></label>
+      <label>Signal BATTERY: <input type="number" class="signalBattery" value="${s.signalBattery ?? 0}"></label>
+      <label>Auto-Off Delay (ms): <input type="number" class="autoOffDelay" value="${s.autoOffDelay ?? 0}" min="0"></label>
+      <label>Alarm-Off Delay (ms): <input type="number" class="signalAlarmOffDelay" value="${s.signalAlarmOffDelay ?? 0}" min="0"></label>
+      <label>Battery-Off Delay (ms): <input type="number" class="signalBatteryOffDelay" value="${s.signalBatteryOffDelay ?? 0}" min="0"></label>
       <button onclick="addSensor(${i})">+</button>
       ${i > 0 ? `<button onclick="removeSensor(${i})">-</button>` : ""}
       <hr>
     `;
     list.appendChild(row);
   });
+}
+
+function emptySensor() {
+  return {
+    active: true,
+    name: "",
+    homeeID: 0,
+    type: "Contact",
+    address: 0,
+    signalOn: 0,
+    signalOff: 0,
+    signalAlarm: 0,
+    signalBattery: 0,
+    autoOffDelay: 0,
+    signalAlarmOffDelay: 0,
+    signalBatteryOffDelay: 0
+  };
 }
 
 function collectSensors() {
@@ -129,11 +172,14 @@ function collectSensors() {
       name: s.querySelector(".name").value.trim(),
       homeeID: parseInt(s.querySelector(".homeeID").value),
       type: s.querySelector(".type").value,
-      address: parseInt(s.querySelector(".address").value),
+      address: parseInt(s.querySelector(".address").value, 16),
       signalOn: parseInt(s.querySelector(".signalOn").value),
       signalOff: parseInt(s.querySelector(".signalOff").value),
       signalAlarm: parseInt(s.querySelector(".signalAlarm").value),
-      signalBattery: parseInt(s.querySelector(".signalBattery").value)
+      signalBattery: parseInt(s.querySelector(".signalBattery").value),
+      autoOffDelay: parseInt(s.querySelector(".autoOffDelay").value),
+      signalAlarmOffDelay: parseInt(s.querySelector(".signalAlarmOffDelay").value),
+      signalBatteryOffDelay: parseInt(s.querySelector(".signalBatteryOffDelay").value)
     });
   });
   return sensors;
@@ -141,17 +187,13 @@ function collectSensors() {
 
 function addSensor(index) {
   let sensors = collectSensors();
-  sensors.splice(index + 1, 0, {
-    active: true,
-    name: "", homeeID: 0, type: "Window-Sensor",
-    address: 0, signalOn: 0, signalOff: 0,
-    signalAlarm: 0, signalBattery: 0
-  });
+  sensors.splice(index + 1, 0, emptySensor());
   renderSensors(sensors);
 }
 
 function removeSensor(index) {
   let sensors = collectSensors();
+  if (sensors.length <= 1) return;
   sensors.splice(index, 1);
   renderSensors(sensors);
 }
@@ -180,14 +222,39 @@ fetch("/config")
   .then(res => res.json())
   .then(json => {
     document.getElementById("fwver").textContent = json.fw || "?";
-    document.getElementById("cfgInSTA").checked = json.system.cfgInSTA;
-    document.getElementById("ssid").value = json.wifi.ssid;
-    document.getElementById("pw").value = json.wifi.pw;
-    document.getElementById("ip").value = json.wifi.ip;
-    document.getElementById("gw").value = json.wifi.gw;
-    document.getElementById("mask").value = json.wifi.mask;
+    document.getElementById("cfgInSTA").checked = json.system?.cfgInSTA;
+    document.getElementById("ssid").value = json.wifi?.ssid || "";
+    document.getElementById("pw").value = json.wifi?.pw || "";
+    document.getElementById("ip").value = json.wifi?.ip || "";
+    document.getElementById("gw").value = json.wifi?.gw || "";
+    document.getElementById("mask").value = json.wifi?.mask || "";
     renderSensors(json.sensors || []);
   });
+
+document.getElementById("cfgInSTA").addEventListener("change", () => {
+  fetch("/updateSystem", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ cfgInSTA: document.getElementById("cfgInSTA").checked })
+  });
+});
+
+function updateSignalDisplay(data) {
+  document.getElementById("sensorAddress").value = data.sensorAddress || "";
+  document.getElementById("sensorData").value = data.sensorData || "";
+  document.getElementById("bitLength").value = data.bitLength || "";
+  document.getElementById("decimal").value = data.decimal || "";
+  document.getElementById("binary").value = data.binary || "";
+  document.getElementById("protocol").value = data.protocol || "";
+  document.getElementById("timestamp").textContent = new Date().toLocaleString();
+}
+
+// Optional: Polling alle 2s
+setInterval(() => {
+  fetch("/lastsignal")
+    .then(res => res.json())
+    .then(data => updateSignalDisplay(data));
+}, 2000);
 </script>
 </body>
 </html>
