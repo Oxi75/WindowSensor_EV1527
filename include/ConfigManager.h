@@ -13,6 +13,19 @@ struct SensorConfig
   String name;
   uint32_t address = 0x0;
 
+  // Signal values for the different sensor types
+  int32_t signal1 = -1;     // Push/Button1 signal
+  int32_t signal2 = -1;     // Release/Button2 signal  
+  int32_t signal3 = -1;     // Alarm/Button3 signal
+  int32_t signal4 = -1;     // Battery/Button4 signal
+  
+  // Auto-release delays in seconds (double to support fractional seconds)
+  double delay1 = NAN;      // Delay for signal1 (NaN = no auto-release)
+  double delay2 = NAN;      // Delay for signal2 (NaN = no auto-release)
+  double delay3 = NAN;      // Delay for signal3 (NaN = no auto-release)
+  double delay4 = NAN;      // Delay for signal4 (NaN = no auto-release)
+
+  // Legacy fields for backward compatibility (will be mapped to signal1-4)
   int32_t signalPushed = -1;
   int32_t autoReleaseDelay = -1;
   int32_t signalReleased = -1;
@@ -21,7 +34,7 @@ struct SensorConfig
   int32_t signalBattery = -1;
   int32_t autoBatteryOffDelay = -1;
 
-//  uint32_t lastSignal_TS = 0;      // Timestamp of last signal received
+  // Runtime data (not saved to config file)
   uint32_t signalPushed_TS = 0;      // Timestamp of last signalOn
   uint32_t signalReleased_TS = 0;   // Timestamp of last signalOff
   uint32_t signalAlarm_TS = 0;     // Timestamp of last signalAlarm
@@ -37,7 +50,7 @@ struct SensorConfig
 class ConfigManager {
 public:
   bool cfgInSTA = false;
-  bool cfgInStandardMode = false;     // neue Checkbox „Enable configuration in standard mode“
+  bool cfgInStandardMode = false;     // neue Checkbox „Enable configuration in standard mode"
 
   String ssid;
   String password;

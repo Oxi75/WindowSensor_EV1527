@@ -38,6 +38,32 @@
       font-size: 0.9em;
       color: #666;
     }
+    .signal-group {
+      margin: 10px 0;
+      padding: 10px;
+      background: #f0f0f0;
+      border-radius: 5px;
+    }
+    .signal-group h4 {
+      margin: 0 0 10px 0;
+      font-size: 1em;
+    }
+    .signal-inputs {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+    .signal-inputs input {
+      width: auto;
+      flex: 1;
+    }
+    .signal-inputs label {
+      margin: 0;
+      flex: 1;
+    }
+    .hidden {
+      display: none;
+    }
   </style>
 </head>
 <body>
@@ -107,6 +133,44 @@ function uploadConfig() {
 
 let list = document.getElementById("sensorList");
 
+// Sensor type configurations
+const sensorTypeConfigs = {
+  "OpenClose": {
+    signals: [
+      { name: "Push Signal", key: "signal1", delayKey: "delay1", needsDelay: false },
+      { name: "Release Signal", key: "signal2", delayKey: "delay2", needsDelay: false },
+      { name: "Alarm Signal", key: "signal3", delayKey: "delay3", needsDelay: true },
+      { name: "Battery Signal", key: "signal4", delayKey: "delay4", needsDelay: true }
+    ]
+  },
+  "OneButton": {
+    signals: [
+      { name: "Button Signal", key: "signal1", delayKey: "delay1", needsDelay: true }
+    ]
+  },
+  "TwoButton": {
+    signals: [
+      { name: "Button 1 Signal", key: "signal1", delayKey: "delay1", needsDelay: true },
+      { name: "Button 2 Signal", key: "signal2", delayKey: "delay2", needsDelay: true }
+    ]
+  },
+  "ThreeButton": {
+    signals: [
+      { name: "Button 1 Signal", key: "signal1", delayKey: "delay1", needsDelay: true },
+      { name: "Button 2 Signal", key: "signal2", delayKey: "delay2", needsDelay: true },
+      { name: "Button 3 Signal", key: "signal3", delayKey: "delay3", needsDelay: true }
+    ]
+  },
+  "FourButton": {
+    signals: [
+      { name: "Button 1 Signal", key: "signal1", delayKey: "delay1", needsDelay: true },
+      { name: "Button 2 Signal", key: "signal2", delayKey: "delay2", needsDelay: true },
+      { name: "Button 3 Signal", key: "signal3", delayKey: "delay3", needsDelay: true },
+      { name: "Button 4 Signal", key: "signal4", delayKey: "delay4", needsDelay: true }
+    ]
+  }
+};
+
 function renderSensors(sensors) {
   list.innerHTML = "";
   if (!sensors || sensors.length === 0) {
@@ -117,28 +181,54 @@ function renderSensors(sensors) {
     let row = document.createElement("div");
     row.className = "sensor";
     row.dataset.index = i;
+    
+    // Create signal groups HTML
+    let signalGroupsHTML = "";
+    Object.keys(sensorTypeConfigs).forEach(type => {
+      const config = sensorTypeConfigs[type];
+      const isVisible = s.type === type;
+      
+      signalGroupsHTML += `<div class="signal-type-group ${isVisible ? '' : 'hidden'}" data-type="${type}">`;
+      
+      config.signals.forEach(signal => {
+        const signalValue = s[signal.key] ?? 0;
+        const delayValue = s[signal.delayKey] ?? "";
+        const delayHTML = signal.needsDelay ? 
+          `<label>Delay (s): <input type="number" class="${signal.delayKey}" value="${delayValue}" min="0" step="0.1" placeholder="NaN"></label>` : 
+          `<input type="hidden" class="${signal.delayKey}" value="">`;
+        
+        signalGroupsHTML += `
+          <div class="signal-group">
+            <h4>${signal.name}</h4>
+            <div class="signal-inputs">
+              <label>Value: <input type="number" class="${signal.key}" value="${signalValue}"></label>
+              ${delayHTML}
+            </div>
+          </div>
+        `;
+      });
+      
+      signalGroupsHTML += "</div>";
+    });
+    
     row.innerHTML = `
       <b>Sensor ${i + 1}</b><br>
       <label><input type="checkbox" class="active" ${s.active ? "checked" : ""}> Active</label>
       <label>Name: <input type="text" class="name" value="${s.name || ""}"></label>
       <label>homee ID: <input type="number" class="homeeID" min="1" max="65535" value="${s.homeeID || ""}"></label>
       <label>Type:
-        <select class="type">
-          <option value="Contact" ${s.type === "Contact" ? "selected" : ""}>Contact</option>
-          <option value="Motion" ${s.type === "Motion" ? "selected" : ""}>Motion</option>
-          <option value="Smoke" ${s.type === "Smoke" ? "selected" : ""}>Smoke</option>
-          <option value="Water" ${s.type === "Water" ? "selected" : ""}>Water</option>
-          <option value="Button" ${s.type === "Button" ? "selected" : ""}>Button</option>
+        <select class="type" onchange="updateSensorTypeVisibility(${i})">
+          <option value="OpenClose" ${s.type === "OpenClose" ? "selected" : ""}>OpenClose Sensor</option>
+          <option value="OneButton" ${s.type === "OneButton" ? "selected" : ""}>OneButton Remote</option>
+          <option value="TwoButton" ${s.type === "TwoButton" ? "selected" : ""}>TwoButton Remote</option>
+          <option value="ThreeButton" ${s.type === "ThreeButton" ? "selected" : ""}>ThreeButton Remote</option>
+          <option value="FourButton" ${s.type === "FourButton" ? "selected" : ""}>FourButton Remote</option>
         </select>
       </label>
       <label>Address (hex): <input type="text" class="address" value="${(s.address ?? 0).toString(16)}" pattern="[0-9a-fA-F]{1,8}" title="Hex value"></label>
-      <label>Signal ON: <input type="number" class="signalOn" value="${s.signalOn ?? 0}"></label>
-      <label>Signal OFF: <input type="number" class="signalOff" value="${s.signalOff ?? 0}"></label>
-      <label>Signal ALARM: <input type="number" class="signalAlarm" value="${s.signalAlarm ?? 0}"></label>
-      <label>Signal BATTERY: <input type="number" class="signalBattery" value="${s.signalBattery ?? 0}"></label>
-      <label>Auto-Off Delay (ms): <input type="number" class="autoOffDelay" value="${s.autoOffDelay ?? 0}" min="0"></label>
-      <label>Alarm-Off Delay (ms): <input type="number" class="signalAlarmOffDelay" value="${s.signalAlarmOffDelay ?? 0}" min="0"></label>
-      <label>Battery-Off Delay (ms): <input type="number" class="signalBatteryOffDelay" value="${s.signalBatteryOffDelay ?? 0}" min="0"></label>
+      
+      ${signalGroupsHTML}
+      
       <button onclick="addSensor(${i})">+</button>
       ${i > 0 ? `<button onclick="removeSensor(${i})">-</button>` : ""}
       <hr>
@@ -147,40 +237,68 @@ function renderSensors(sensors) {
   });
 }
 
+function updateSensorTypeVisibility(sensorIndex) {
+  const sensorRow = document.querySelector(`[data-index="${sensorIndex}"]`);
+  const typeSelect = sensorRow.querySelector('.type');
+  const selectedType = typeSelect.value;
+  
+  // Hide all signal type groups
+  sensorRow.querySelectorAll('.signal-type-group').forEach(group => {
+    group.classList.add('hidden');
+  });
+  
+  // Show the selected type group
+  const selectedGroup = sensorRow.querySelector(`[data-type="${selectedType}"]`);
+  if (selectedGroup) {
+    selectedGroup.classList.remove('hidden');
+  }
+}
+
 function emptySensor() {
   return {
     active: true,
     name: "",
     homeeID: 0,
-    type: "Contact",
+    type: "OpenClose",
     address: 0,
-    signalOn: 0,
-    signalOff: 0,
-    signalAlarm: 0,
-    signalBattery: 0,
-    autoOffDelay: 0,
-    signalAlarmOffDelay: 0,
-    signalBatteryOffDelay: 0
+    signal1: 0,
+    signal2: 0,
+    signal3: 0,
+    signal4: 0,
+    delay1: "",
+    delay2: "",
+    delay3: "",
+    delay4: ""
   };
 }
 
 function collectSensors() {
   const sensors = [];
   document.querySelectorAll(".sensor").forEach(s => {
-    sensors.push({
+    const sensorData = {
       active: s.querySelector(".active").checked,
       name: s.querySelector(".name").value.trim(),
       homeeID: parseInt(s.querySelector(".homeeID").value),
       type: s.querySelector(".type").value,
       address: parseInt(s.querySelector(".address").value, 16),
-      signalOn: parseInt(s.querySelector(".signalOn").value),
-      signalOff: parseInt(s.querySelector(".signalOff").value),
-      signalAlarm: parseInt(s.querySelector(".signalAlarm").value),
-      signalBattery: parseInt(s.querySelector(".signalBattery").value),
-      autoOffDelay: parseInt(s.querySelector(".autoOffDelay").value),
-      signalAlarmOffDelay: parseInt(s.querySelector(".signalAlarmOffDelay").value),
-      signalBatteryOffDelay: parseInt(s.querySelector(".signalBatteryOffDelay").value)
-    });
+      signal1: parseInt(s.querySelector(".signal1").value) || 0,
+      signal2: parseInt(s.querySelector(".signal2").value) || 0,
+      signal3: parseInt(s.querySelector(".signal3").value) || 0,
+      signal4: parseInt(s.querySelector(".signal4").value) || 0
+    };
+    
+    // Add delay values, convert empty strings to NaN
+    const delay1 = s.querySelector(".delay1").value;
+    const delay2 = s.querySelector(".delay2").value;
+    const delay3 = s.querySelector(".delay3").value;
+    const delay4 = s.querySelector(".delay4").value;
+    
+    sensorData.delay1 = delay1 === "" ? NaN : parseFloat(delay1);
+    sensorData.delay2 = delay2 === "" ? NaN : parseFloat(delay2);
+    sensorData.delay3 = delay3 === "" ? NaN : parseFloat(delay3);
+    sensorData.delay4 = delay4 === "" ? NaN : parseFloat(delay4);
+    
+    sensors.push(sensorData);
   });
   return sensors;
 }

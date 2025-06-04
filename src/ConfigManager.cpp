@@ -21,28 +21,84 @@ bool ConfigManager::load()
   }
 
   cfgInSTA = doc["system"]["cfgInSTA"] | false;
+  cfgInStandardMode = doc["system"]["cfgInStandardMode"] | false;  
   ssid     = doc["wifi"]["ssid"] | "";
   password = decrypt(doc["wifi"]["pwX"] | "");
   clientIP  = doc["wifi"]["ip"] | "192.168.1.100";
   gatewayIP  = doc["wifi"]["gw"] | "192.168.1.1";
   subnet   = doc["wifi"]["mask"] | "255.255.255.0";
-  cfgInSTA = doc["system"]["cfgInSTA"] | false;
-  cfgInStandardMode = doc["system"]["cfgInStandardMode"] | false;  
 
   JsonArray arr = doc["sensors"].as<JsonArray>();
   int i = 0;
   for (JsonObject s : arr)
   {
     if (i >= MAX_SENSORS) break;
-    sensors[i].active         = s["active"] | false;
-    sensors[i].name           = s["name"] | "";
-    sensors[i].homeeID        = s["homeeID"] | 0;
-    sensors[i].type           = s["type"] | "Window-Sensor";
-    sensors[i].address        = s["address"] | 0;
-    sensors[i].signalPushed   = s["signalOn"] | 0;
-    sensors[i].signalReleased = s["signalOff"] | 0;
-    sensors[i].signalAlarm    = s["signalAlarm"] | 0;
-    sensors[i].signalBattery  = s["signalBattery"] | 0;
+    sensors[i].active   = s["active"] | false;
+    sensors[i].name     = s["name"] | "";
+    sensors[i].homeeID  = s["homeeID"] | 0;
+    sensors[i].type     = s["type"] | "OpenClose";
+    sensors[i].address  = s["address"] | 0;
+    
+    // Load new signal configuration
+    sensors[i].signal1  = s["signal1"] | 0;
+    sensors[i].signal2  = s["signal2"] | 0;
+    sensors[i].signal3  = s["signal3"] | 0;
+    sensors[i].signal4  = s["signal4"] | 0;
+    
+    // Load delay configuration - handle NaN values properly
+    if (s.containsKey("delay1") && !s["delay1"].isNull()) {
+      sensors[i].delay1 = s["delay1"];
+    } else {
+      sensors[i].delay1 = NAN;
+    }
+    if (s.containsKey("delay2") && !s["delay2"].isNull()) {
+      sensors[i].delay2 = s["delay2"];
+    } else {
+      sensors[i].delay2 = NAN;
+    }
+    if (s.containsKey("delay3") && !s["delay3"].isNull()) {
+      sensors[i].delay3 = s["delay3"];
+    } else {
+      sensors[i].delay3 = NAN;
+    }
+    if (s.containsKey("delay4") && !s["delay4"].isNull()) {
+      sensors[i].delay4 = s["delay4"];
+    } else {
+      sensors[i].delay4 = NAN;
+    }
+    
+    // Legacy support - map old fields to new ones if new ones are not present
+    if (s.containsKey("signalOn") && !s.containsKey("signal1")) {
+      sensors[i].signal1 = s["signalOn"] | 0;
+      sensors[i].signalPushed = sensors[i].signal1; // Update legacy field too
+    }
+    if (s.containsKey("signalOff") && !s.containsKey("signal2")) {
+      sensors[i].signal2 = s["signalOff"] | 0;
+      sensors[i].signalReleased = sensors[i].signal2; // Update legacy field too
+    }
+    if (s.containsKey("signalAlarm") && !s.containsKey("signal3")) {
+      sensors[i].signal3 = s["signalAlarm"] | 0;
+      sensors[i].signalAlarm = sensors[i].signal3; // Update legacy field too
+    }
+    if (s.containsKey("signalBattery") && !s.containsKey("signal4")) {
+      sensors[i].signal4 = s["signalBattery"] | 0;
+      sensors[i].signalBattery = sensors[i].signal4; // Update legacy field too
+    }
+    
+    // Legacy delay support
+    if (s.containsKey("autoOffDelay") && isnan(sensors[i].delay1)) {
+      sensors[i].delay1 = (s["autoOffDelay"] | 0) / 1000.0; // Convert ms to seconds
+      sensors[i].autoReleaseDelay = s["autoOffDelay"] | 0; // Update legacy field too
+    }
+    if (s.containsKey("signalAlarmOffDelay") && isnan(sensors[i].delay3)) {
+      sensors[i].delay3 = (s["signalAlarmOffDelay"] | 0) / 1000.0; // Convert ms to seconds
+      sensors[i].autoAlarmOffDelay = s["signalAlarmOffDelay"] | 0; // Update legacy field too
+    }
+    if (s.containsKey("signalBatteryOffDelay") && isnan(sensors[i].delay4)) {
+      sensors[i].delay4 = (s["signalBatteryOffDelay"] | 0) / 1000.0; // Convert ms to seconds
+      sensors[i].autoBatteryOffDelay = s["signalBatteryOffDelay"] | 0; // Update legacy field too
+    }
+    
     i++;
   }
 
@@ -52,12 +108,22 @@ bool ConfigManager::load()
     sensors[0].active = true;
     sensors[0].name = "DefaultSensor";
     sensors[0].homeeID = 1;
-    sensors[0].type = "Window-Sensor";
+    sensors[0].type = "OpenClose";
     sensors[0].address = 0;
-    sensors[0].signalPushed = 9999;
-    sensors[0].signalReleased = 9999;
-    sensors[0].signalAlarm = 9999;
-    sensors[0].signalBattery = 9999;
+    sensors[0].signal1 = 9999;
+    sensors[0].signal2 = 9999;
+    sensors[0].signal3 = 9999;
+    sensors[0].signal4 = 9999;
+    sensors[0].delay1 = NAN;
+    sensors[0].delay2 = NAN;
+    sensors[0].delay3 = NAN;
+    sensors[0].delay4 = NAN;
+    
+    // Update legacy fields for compatibility
+    sensors[0].signalPushed = sensors[0].signal1;
+    sensors[0].signalReleased = sensors[0].signal2;
+    sensors[0].signalAlarm = sensors[0].signal3;
+    sensors[0].signalBattery = sensors[0].signal4;
   }
   else {
     Serial.printf("[CONFIG] %d sensor(s) loaded.\n", i);
@@ -72,27 +138,60 @@ bool ConfigManager::save()
   DynamicJsonDocument doc(4096);
 
   doc["system"]["cfgInSTA"] = cfgInSTA;
+  doc["system"]["cfgInStandardMode"] = cfgInStandardMode;  
   doc["wifi"]["ssid"] = ssid;
   doc["wifi"]["pwX"]  = encrypt(password);
   doc["wifi"]["ip"]   = clientIP;
   doc["wifi"]["gw"]   = gatewayIP;
   doc["wifi"]["mask"] = subnet;
-  doc["system"]["cfgInSTA"] = cfgInSTA;
-  doc["system"]["cfgInStandardMode"] = cfgInStandardMode;  
 
   JsonArray arr = doc.createNestedArray("sensors");
   for (int i = 0; i < MAX_SENSORS; i++) {
     if (sensors[i].name == "") continue;
+    
     JsonObject s = arr.createNestedObject();
-    s["active"]        = sensors[i].active;
-    s["name"]          = sensors[i].name;
-    s["homeeID"]       = sensors[i].homeeID;
-    s["type"]          = sensors[i].type;
-    s["address"]       = sensors[i].address;
-    s["signalOn"]      = sensors[i].signalPushed;
-    s["signalOff"]     = sensors[i].signalReleased;
-    s["signalAlarm"]   = sensors[i].signalAlarm;
-    s["signalBattery"] = sensors[i].signalBattery;
+    s["active"]   = sensors[i].active;
+    s["name"]     = sensors[i].name;
+    s["homeeID"]  = sensors[i].homeeID;
+    s["type"]     = sensors[i].type;
+    s["address"]  = sensors[i].address;
+    
+    // Save new signal configuration
+    s["signal1"]  = sensors[i].signal1;
+    s["signal2"]  = sensors[i].signal2;
+    s["signal3"]  = sensors[i].signal3;
+    s["signal4"]  = sensors[i].signal4;
+    
+    // Save delay configuration - handle NaN values properly
+    if (!isnan(sensors[i].delay1)) {
+      s["delay1"] = sensors[i].delay1;
+    }
+    if (!isnan(sensors[i].delay2)) {
+      s["delay2"] = sensors[i].delay2;
+    }
+    if (!isnan(sensors[i].delay3)) {
+      s["delay3"] = sensors[i].delay3;
+    }
+    if (!isnan(sensors[i].delay4)) {
+      s["delay4"] = sensors[i].delay4;
+    }
+    
+    // Also save legacy fields for backward compatibility
+    s["signalOn"]      = sensors[i].signal1;  // Map signal1 to legacy signalOn
+    s["signalOff"]     = sensors[i].signal2;  // Map signal2 to legacy signalOff
+    s["signalAlarm"]   = sensors[i].signal3;  // Map signal3 to legacy signalAlarm
+    s["signalBattery"] = sensors[i].signal4;  // Map signal4 to legacy signalBattery
+    
+    // Legacy delay fields (convert seconds back to milliseconds)
+    if (!isnan(sensors[i].delay1)) {
+      s["autoOffDelay"] = (int)(sensors[i].delay1 * 1000);
+    }
+    if (!isnan(sensors[i].delay3)) {
+      s["signalAlarmOffDelay"] = (int)(sensors[i].delay3 * 1000);
+    }
+    if (!isnan(sensors[i].delay4)) {
+      s["signalBatteryOffDelay"] = (int)(sensors[i].delay4 * 1000);
+    }
   }
 
   File f = LittleFS.open(CONFIG_FILE, "w");
