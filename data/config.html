@@ -87,14 +87,14 @@
     <h2>WiFi Configuration</h2>
     <label>SSID: <input type="text" id="ssid"></label>
     <label>Password: <input type="password" id="pw"></label>
-    <label>Client IP: <input type="text" id="ip"></label>
     <label>Gateway IP: <input type="text" id="gw"></label>
     <label>SubNet Mask: <input type="text" id="mask"></label>
+    <label>Client IP: <input type="text" id="ip"></label>
   </div>
 
   <div class="section">
     <h2>Last Received Signal</h2>
-    <label>Sensor Address: <input type="text" id="sensorAddress" readonly></label>
+    <label>Sensor Address (hex): <input type="text" id="sensorAddress" readonly></label>
     <label>Value: <input type="text" id="sensorData" readonly></label>
     <label>Bit Length: <input type="text" id="bitLength" readonly></label>
     <label>Decimal: <input type="text" id="decimal" readonly></label>
@@ -137,8 +137,8 @@ let list = document.getElementById("sensorList");
 const sensorTypeConfigs = {
   "OpenClose": {
     signals: [
-      { name: "Push Signal", key: "signal1", delayKey: "delay1", needsDelay: false },
-      { name: "Release Signal", key: "signal2", delayKey: "delay2", needsDelay: false },
+      { name: "Open Signal", key: "signal1", delayKey: "delay1", needsDelay: false },
+      { name: "Close Signal", key: "signal2", delayKey: "delay2", needsDelay: false },
       { name: "Alarm Signal", key: "signal3", delayKey: "delay3", needsDelay: true },
       { name: "Battery Signal", key: "signal4", delayKey: "delay4", needsDelay: true }
     ]
@@ -192,7 +192,7 @@ function renderSensors(sensors) {
       
       config.signals.forEach(signal => {
         const signalValue = s[signal.key] ?? 0;
-        const delayValue = s[signal.delayKey] ?? "";
+        const delayValue = s[signal.delayKey] !== undefined && s[signal.delayKey] !== null && !isNaN(s[signal.delayKey]) ? s[signal.delayKey] : "";
         const delayHTML = signal.needsDelay ? 
           `<label>Delay (s): <input type="number" class="${signal.delayKey}" value="${delayValue}" min="0" step="0.1" placeholder="NaN"></label>` : 
           `<input type="hidden" class="${signal.delayKey}" value="">`;
@@ -213,9 +213,6 @@ function renderSensors(sensors) {
     
     row.innerHTML = `
       <b>Sensor ${i + 1}</b><br>
-      <label><input type="checkbox" class="active" ${s.active ? "checked" : ""}> Active</label>
-      <label>Name: <input type="text" class="name" value="${s.name || ""}"></label>
-      <label>homee ID: <input type="number" class="homeeID" min="1" max="65535" value="${s.homeeID || ""}"></label>
       <label>Type:
         <select class="type" onchange="updateSensorTypeVisibility(${i})">
           <option value="OpenClose" ${s.type === "OpenClose" ? "selected" : ""}>OpenClose Sensor</option>
@@ -225,6 +222,12 @@ function renderSensors(sensors) {
           <option value="FourButton" ${s.type === "FourButton" ? "selected" : ""}>FourButton Remote</option>
         </select>
       </label>
+      <label style="display: inline-flex; align-items: center;">
+        <input type="checkbox" class="active" ${s.active ? "checked" : ""}>
+        <span style="margin-left: 0.5em;">activated</span>
+      </label>
+      <label>Name: <input type="text" class="name" value="${s.name || ""}"></label>
+      <label>homee ID: <input type="number" class="homeeID" min="1" max="65535" value="${s.homeeID || ""}"></label>
       <label>Address (hex): <input type="text" class="address" value="${(s.address ?? 0).toString(16)}" pattern="[0-9a-fA-F]{1,8}" title="Hex value"></label>
       
       ${signalGroupsHTML}
@@ -278,9 +281,9 @@ function collectSensors() {
     const sensorData = {
       active: s.querySelector(".active").checked,
       name: s.querySelector(".name").value.trim(),
-      homeeID: parseInt(s.querySelector(".homeeID").value),
+      homeeID: parseInt(s.querySelector(".homeeID").value) || 0,
       type: s.querySelector(".type").value,
-      address: parseInt(s.querySelector(".address").value, 16),
+      address: parseInt(s.querySelector(".address").value, 16) || 0,
       signal1: parseInt(s.querySelector(".signal1").value) || 0,
       signal2: parseInt(s.querySelector(".signal2").value) || 0,
       signal3: parseInt(s.querySelector(".signal3").value) || 0,
@@ -293,10 +296,10 @@ function collectSensors() {
     const delay3 = s.querySelector(".delay3").value;
     const delay4 = s.querySelector(".delay4").value;
     
-    sensorData.delay1 = delay1 === "" ? NaN : parseFloat(delay1);
-    sensorData.delay2 = delay2 === "" ? NaN : parseFloat(delay2);
-    sensorData.delay3 = delay3 === "" ? NaN : parseFloat(delay3);
-    sensorData.delay4 = delay4 === "" ? NaN : parseFloat(delay4);
+    sensorData.delay1 = delay1 === "" ? null : parseFloat(delay1);
+    sensorData.delay2 = delay2 === "" ? null : parseFloat(delay2);
+    sensorData.delay3 = delay3 === "" ? null : parseFloat(delay3);
+    sensorData.delay4 = delay4 === "" ? null : parseFloat(delay4);
     
     sensors.push(sensorData);
   });
@@ -321,7 +324,7 @@ function saveConfig() {
     system: { cfgInSTA: document.getElementById("cfgInSTA").checked },
     wifi: {
       ssid: document.getElementById("ssid").value,
-      pw: document.getElementById("pw").value,
+      password: document.getElementById("pw").value,  // Geändert von 'pw' zu 'password'
       ip: document.getElementById("ip").value,
       gw: document.getElementById("gw").value,
       mask: document.getElementById("mask").value
@@ -342,7 +345,7 @@ fetch("/config")
     document.getElementById("fwver").textContent = json.fw || "?";
     document.getElementById("cfgInSTA").checked = json.system?.cfgInSTA;
     document.getElementById("ssid").value = json.wifi?.ssid || "";
-    document.getElementById("pw").value = json.wifi?.pw || "";
+    document.getElementById("pw").value = json.wifi?.password || "";  // Geändert von 'pw' zu 'password'
     document.getElementById("ip").value = json.wifi?.ip || "";
     document.getElementById("gw").value = json.wifi?.gw || "";
     document.getElementById("mask").value = json.wifi?.mask || "";
