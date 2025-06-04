@@ -13,13 +13,25 @@ struct SensorConfig
   String name;
   uint32_t address = 0x0;
 
-  int32_t signalOn = -1;
-  int32_t autoOffDelay = -1;
-  int32_t signalOff = -1;
+  int32_t signalPushed = -1;
+  int32_t autoReleaseDelay = -1;
+  int32_t signalReleased = -1;
   int32_t signalAlarm = -1;
-  int32_t signalAlarmOffDelay = -1;
+  int32_t autoAlarmOffDelay = -1;
   int32_t signalBattery = -1;
-  int32_t signalBatteryOffDelay = -1;
+  int32_t autoBatteryOffDelay = -1;
+
+//  uint32_t lastSignal_TS = 0;      // Timestamp of last signal received
+  uint32_t signalPushed_TS = 0;      // Timestamp of last signalOn
+  uint32_t signalReleased_TS = 0;   // Timestamp of last signalOff
+  uint32_t signalAlarm_TS = 0;     // Timestamp of last signalAlarm
+  uint32_t signalBattery_TS = 0;   // Timestamp of last signalBattery
+  uint32_t signalAlarmCount = 0;   // Count of signalAlarm events
+  uint32_t signalBatteryCount = 0; // Count of signalBattery events
+
+  double valueState = 0.0;       // Value state for the sensor: released = 0; pushed = 1
+  double valueAlarm = 0.0;       // Value for alarm state: no Alarm = 0; Alarm = 1
+  double valueBattery = 0.0;     // Value for battery level
 };
 
 class ConfigManager {

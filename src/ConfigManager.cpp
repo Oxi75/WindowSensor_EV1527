@@ -34,15 +34,15 @@ bool ConfigManager::load()
   for (JsonObject s : arr)
   {
     if (i >= MAX_SENSORS) break;
-    sensors[i].active        = s["active"] | false;
-    sensors[i].name          = s["name"] | "";
-    sensors[i].homeeID       = s["homeeID"] | 0;
-    sensors[i].type          = s["type"] | "Window-Sensor";
-    sensors[i].address       = s["address"] | 0;
-    sensors[i].signalOn      = s["signalOn"] | 0;
-    sensors[i].signalOff     = s["signalOff"] | 0;
-    sensors[i].signalAlarm   = s["signalAlarm"] | 0;
-    sensors[i].signalBattery = s["signalBattery"] | 0;
+    sensors[i].active         = s["active"] | false;
+    sensors[i].name           = s["name"] | "";
+    sensors[i].homeeID        = s["homeeID"] | 0;
+    sensors[i].type           = s["type"] | "Window-Sensor";
+    sensors[i].address        = s["address"] | 0;
+    sensors[i].signalPushed   = s["signalOn"] | 0;
+    sensors[i].signalReleased = s["signalOff"] | 0;
+    sensors[i].signalAlarm    = s["signalAlarm"] | 0;
+    sensors[i].signalBattery  = s["signalBattery"] | 0;
     i++;
   }
 
@@ -53,11 +53,11 @@ bool ConfigManager::load()
     sensors[0].name = "DefaultSensor";
     sensors[0].homeeID = 1;
     sensors[0].type = "Window-Sensor";
-    sensors[0].address = 1234;
-    sensors[0].signalOn = 1001;
-    sensors[0].signalOff = 1002;
-    sensors[0].signalAlarm = 1003;
-    sensors[0].signalBattery = 1004;
+    sensors[0].address = 0;
+    sensors[0].signalPushed = 9999;
+    sensors[0].signalReleased = 9999;
+    sensors[0].signalAlarm = 9999;
+    sensors[0].signalBattery = 9999;
   }
   else {
     Serial.printf("[CONFIG] %d sensor(s) loaded.\n", i);
@@ -89,8 +89,8 @@ bool ConfigManager::save()
     s["homeeID"]       = sensors[i].homeeID;
     s["type"]          = sensors[i].type;
     s["address"]       = sensors[i].address;
-    s["signalOn"]      = sensors[i].signalOn;
-    s["signalOff"]     = sensors[i].signalOff;
+    s["signalOn"]      = sensors[i].signalPushed;
+    s["signalOff"]     = sensors[i].signalReleased;
     s["signalAlarm"]   = sensors[i].signalAlarm;
     s["signalBattery"] = sensors[i].signalBattery;
   }

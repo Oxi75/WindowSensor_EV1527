@@ -45,12 +45,12 @@ String FW_VERSION_STR = String(FW_VERSION, 2);
 #define AttrID_State      0b01000000
 #define AttrID_Alarm      0b10000000
 #define AttrID_BattLevel  0b11000000
-#define SensorSignalOpen  0x0000
-#define SensorSignalClosed 0x0001
-#define SensorSignalAlarm 0x0002
+#define SensorSignalOpen    0x0000
+#define SensorSignalClosed  0x0001
+#define SensorSignalAlarm   0x0002
 #define SensorSignalBattery 0x0003
 
-
+#define REPEATED_TRANSMISSION_DELAY 250 // Zeit in ms, die zwischen wiederholten Übertragungen gewartet wird
 
 const char* AP_SSID = "vhih";
 const char* AP_PASS = "12345678";
@@ -346,91 +346,57 @@ void homee_setup()
 
 
 static double lastValue = 1;
-void homee_updateValues(uint32_t snsNo, uint32_t value)
+void homee_updateValues(uint32_t snsNo)
 {  
-  Serial.print("update homee values for sensor " + String(snsNo) + " with attribute ");
+  Serial.printf("update homee values for Sensor No %d (%s)\n", snsNo, config.sensors[snsNo].type);
 
   // Update Sensor or Button-State
   nodeAttributes *na;
   if (config.sensors[snsNo].type == "Window-Sensor")
   {
-    if (value == SensorSignalOpen) 
+    if (config.sensors[snsNo].signalPushed || config.sensors[snsNo].signalReleased) 
     {
-      Serial.println("open");
       na = vhih.getAttributeById(AttrID_State | snsNo << 1);
-      na->setCurrentValue(1);
+      na->setCurrentValue(config.sensors[snsNo].valueState);
+      if (na) vhih.updateAttributeValue(na, na->getCurrentValue());
+      delay(200);
+      yield();
     } 
-    else if (value == SensorSignalClosed) 
+
+    if (config.sensors[snsNo].signalBattery) 
     {
-      Serial.println("closed");
-      na = vhih.getAttributeById(AttrID_State | snsNo << 1);
-      na->setCurrentValue(0);
-    } 
-    else if (value == SensorSignalBattery) 
-    {
-      Serial.println("battery warning");
       na = vhih.getAttributeById(AttrID_BattLevel | snsNo << 1);
-      na->setCurrentValue(1);
+      na->setCurrentValue(config.sensors[snsNo].valueBattery);
+      if (na) vhih.updateAttributeValue(na, na->getCurrentValue());
+      delay(200);
+      yield();
     } 
+
+    if (config.sensors[snsNo].signalAlarm) 
+    {
+      na = vhih.getAttributeById(AttrID_Alarm | snsNo << 1);
+      na->setCurrentValue(config.sensors[snsNo].valueAlarm);
+      if (na) vhih.updateAttributeValue(na, na->getCurrentValue());
+      delay(200);
+      yield();
+    } 
+    return;
   }
-  else if (config.sensors[snsNo].type == "Button")
+
+  if (config.sensors[snsNo].type == "Button")
   {
-    Serial.println("pushed");
-    // For Push-Button, 0 = pushed
-    na = vhih.getAttributeById(AttrID_State | snsNo << 1);
-    
-    if (lastValue == 0) lastValue = 1;
-    else lastValue = 0;
-    na->setCurrentValue(lastValue);
+    if (config.sensors[snsNo].signalPushed) 
+    {
+      na = vhih.getAttributeById(AttrID_State | snsNo << 1);
+      na->setCurrentValue(config.sensors[snsNo].valueState);
+      if (na) vhih.updateAttributeValue(na, na->getCurrentValue());
+      delay(200);
+      yield();
+    } 
+    return;
   }
-
-
-  if (na) vhih.updateAttributeValue(na, na->getCurrentValue());
-  delay(200);
-  yield();
 } 
 
-
-/*
-void homee_updateValues(uint32_t snsNo, double snsStatus, double alarmStatus, double batteryLevel)
-{  
-  nodeAttributes *na;
-  Serial.print("update homee values for sensor " + String(snsNo) + " with attributes ");
-
-  // Update Sensor or Button-State
-  na = vhih.getAttributeById(AttrID_State | snsNo << 1);
-  if (na)
-  {
-    vhih.updateAttributeValue(na, snsStatus );
-    delay(200);
-    yield();
-    Serial.print("Status: " + String(snsStatus) + ", ");
-  } 
-
-  // Update Alarm-State
-  na = vhih.getAttributeById(AttrID_Alarm | snsNo << 1);
-  if (na)
-  {
-    vhih.updateAttributeValue(na, alarmStatus);
-    delay(200);
-    yield();
-    Serial.print("Alarm: " + String(alarmStatus) + ", ");
-  } 
-
-  //Update Battery-Level
-  na = vhih.getAttributeById(AttrID_BattLevel | snsNo << 1);
-  if (na)
-  {
-    vhih.updateAttributeValue(na, batteryLevel);  
-    delay(200);
-    yield();
-    Serial.print("BatteryLevel: " + String(batteryLevel));
-  }
-
-  Serial.println();
-  Serial.println("homee Update done");
-}
-*/
 
 // RCSwitch related functions
 RCSwitch mySwitch = RCSwitch();
@@ -442,6 +408,146 @@ void RCSwitch_setup()
 }
 
 
+void RCSwitch_check(bool HomeeEnabled)
+{
+  uint32_t snsAddr = 0; // Initialisiere den Wert
+  uint32_t snsValue = 0;
+  uint32_t protocol = 0; // Protokoll initialisieren
+  uint32_t lastReceivedTS = millis() - 10000; // Zeitstempel des letzten empfangenen Signals (long time ago)
+
+  
+  if (mySwitch.available())
+  {
+    lastReceivedTS = millis(); // Aktualisiere den Zeitstempel des letzten empfangenen Signals
+
+    uint32_t data = mySwitch.getReceivedValue();    
+    lastSignal.binary = String(data, BIN);
+
+    protocol = mySwitch.getReceivedProtocol(); // Protokoll des empfangenen Signals
+    lastSignal.protocol = String(protocol);
+
+    lastSignal.bitLength = mySwitch.getReceivedBitlength(); // Bitlänge des empfangenen Signals
+
+    snsValue = data & 0x000000F; // Extrahiere die unteren 4 Bit für den Signalwert
+    lastSignal.sensorData = String(snsValue, DEC); // Extrahiere die unteren 4 Bit für den Signalwert
+
+    snsAddr = data >> 4; // Extrahiere die oberen 20 Bit für die Sensoradresse    
+    lastSignal.sensorAddress = String(snsAddr, HEX); // Adresse aus den oberen 20 Bit extrahieren
+    lastSignal.sensorAddress.toUpperCase(); // Adresse in Großbuchstaben umwandeln
+
+    mySwitch.resetAvailable(); // Verfügbare Daten zurücksetzen
+
+  }
+
+  for (uint32_t sns = 0; sns < MAX_SENSORS; sns++)  // Durchlaufe alle konfigurierten Sensoren bis Sensor gefunden oder alle Sensoren geprüft wurden
+  {
+    // Prüfen, ob der Sensor aktiv ist und eine gültige Konfiguration hat
+    if ((config.sensors[sns].name == "") || (!config.sensors[sns].active) || (config.sensors[sns].homeeID == 0))
+    {
+      //Serial.printf("[CONFIG] Sensor %d is not active or has no name or invalid homeeID -> skipping.\n", sns);      
+      continue;
+    }
+
+    uint32_t now = millis();
+    bool signalPushed  = false;       //"closed" changed
+    bool signalReleased    = false;   //"open" changed
+    bool signalAlarm   = false;       //"alarm" changed
+    bool signalBattery = false;       // "battery" changed
+
+    double stateValue = 0; //Value for the state attribute
+    double alarmValue = 0; //Value for the alarm attribute
+    double batteryValue = 0; //Value for the battery attribute    
+
+
+    if (config.sensors[sns].address == snsAddr) // Überprüfen, ob die Adresse übereinstimmt 
+    {
+      // Sensor gefunden
+      Serial.printf("Sensor %s has send value %d\n", config.sensors[sns].name.c_str(), snsValue); // Debug-Ausgabe der Adresse und des Wertes
+    
+      signalPushed    = snsValue == config.sensors[sns].signalPushed;     // Signal für geschlossen
+      signalReleased  = snsValue == config.sensors[sns].signalReleased;   // Signal für offen
+      signalAlarm     = snsValue == config.sensors[sns].signalAlarm;      // Signal für Alarm
+      signalBattery   = snsValue == config.sensors[sns].signalBattery;    // Signal für Batteriewarnung
+
+      //Zeitstempel aktualisieren, wenn das Signal geändert wurde
+      if (signalPushed)
+      {        
+        if (now - config.sensors[sns].signalPushed_TS < REPEATED_TRANSMISSION_DELAY)  //repeated transmissions must be surpressed
+        {
+          signalPushed = false; // Wenn das Signal zu schnell wiederholt wird, ignoriere es
+        }
+        config.sensors[sns].signalPushed_TS = now; // Zeitstempel für geschlossenes Signal aktualisieren
+
+        stateValue = 1;  //set attribute value for pushed / closed state
+      }
+      if (signalReleased)
+      {
+        if (now - config.sensors[sns].signalReleased < REPEATED_TRANSMISSION_DELAY)  //repeated transmissions must be surpressed
+        {
+          signalReleased = false; // Wenn das Signal zu schnell wiederholt wird, ignoriere es
+        }
+        config.sensors[sns].signalReleased_TS = now; // Zeitstempel für geschlossenes Signal aktualisieren
+
+        stateValue = 0;  //set attribute value for released / open state
+      }
+      if (signalAlarm)
+      {
+        if (now - config.sensors[sns].signalAlarm_TS < REPEATED_TRANSMISSION_DELAY)  //repeated transmissions must be surpressed
+        {
+          signalAlarm = false; // Wenn das Signal zu schnell wiederholt wird, ignoriere es
+        }
+        config.sensors[sns].signalAlarm_TS = now; // Zeitstempel für geschlossenes Signal aktualisieren
+
+        alarmValue = 1; //set attribute value for alarm state
+      }
+      if (signalBattery)
+      {
+        if (now - config.sensors[sns].signalBattery_TS < REPEATED_TRANSMISSION_DELAY)  //repeated transmissions must be surpressed
+        {
+          signalBattery = false; // Wenn das Signal zu schnell wiederholt wird, ignoriere es
+        }
+          config.sensors[sns].signalBattery_TS = now; // Zeitstempel für geschlossenes Signal aktualisieren
+
+        batteryValue = 1; //set attribute value for battery state
+      }
+    }
+
+    // even if address does not match, the auto-X-feature might require to update the sensor state
+    if (now - config.sensors[sns].signalPushed_TS > config.sensors[sns].autoReleaseDelay)
+    {
+      signalReleased = true;                        // set signalReleased to force a value update
+      stateValue = 0;                               //set attribute value for released / open state
+      config.sensors[sns].signalPushed_TS = now - REPEATED_TRANSMISSION_DELAY;  // update the timestamp for released signal but enabled new transmissions
+    }
+
+    if (now - config.sensors[sns].signalAlarm_TS > config.sensors[sns].autoAlarmOffDelay)
+    {
+      signalAlarm = true;                           //set signalReleased to force a value update
+      config.sensors[sns].valueAlarm = 0;           //set attribute value for alarm state
+      config.sensors[sns].signalAlarm_TS = now - REPEATED_TRANSMISSION_DELAY;  // update the timestamp for released signal but enabled new transmissions
+    }
+
+    if (now - config.sensors[sns].signalBattery_TS > config.sensors[sns].autoBatteryOffDelay)
+    {
+      signalBattery = true;                        //set signalReleased to force a value update
+      config.sensors[sns].valueBattery = 66.0;     //set new battery level value which does not trigger a warning
+      config.sensors[sns].signalBattery_TS = now - REPEATED_TRANSMISSION_DELAY;  // update the timestamp for released signal but enabled new transmissions   
+    }
+
+
+
+    if ((signalPushed || signalReleased || signalAlarm || signalBattery) && HomeeEnabled)
+    {
+      Serial.printf("[RCSWITCH] Sensor %s has changed: Pushed: %d, Released: %d, Alarm: %d, Battery: %d\n", 
+                    config.sensors[sns].name.c_str(), signalPushed, signalReleased, signalAlarm, signalBattery);
+        homee_updateValues(sns);
+    }
+  }
+
+}
+
+
+/*
 bool RCSwitch_check(bool HomeeEnabled)
 {
   static uint32_t lastValue = 0; // Letzter empfangener Wert
@@ -537,7 +643,7 @@ bool RCSwitch_check(bool HomeeEnabled)
 
   return sensorFound;
 }
-
+*/
 
 void setup() 
 {
@@ -567,11 +673,11 @@ void setup()
     config.sensors[0].name = "TestSensor";
     config.sensors[0].homeeID = 1;
     config.sensors[0].type = "Window-Sensor";
-    config.sensors[0].address = 1234;
-    config.sensors[0].signalOn = 1001;
-    config.sensors[0].signalOff = 1002;
-    config.sensors[0].signalAlarm = 1003;
-    config.sensors[0].signalBattery = 1004;
+    config.sensors[0].address = 0x0;
+    config.sensors[0].signalPushed = 9999;
+    config.sensors[0].signalReleased = 9999;
+    config.sensors[0].signalAlarm = 9999;
+    config.sensors[0].signalBattery = 9999;
     config.save();
   }
 
@@ -598,13 +704,13 @@ server.on("/config", HTTP_GET, [](AsyncWebServerRequest* req) {
     s["homeeID"] = config.sensors[i].homeeID;
     s["type"] = config.sensors[i].type;
     s["address"] = String(config.sensors[i].address, HEX);
-    s["signalOn"] = config.sensors[i].signalOn;
-    s["signalOff"] = config.sensors[i].signalOff;
+    s["signalOn"] = config.sensors[i].signalPushed;
+    s["signalOff"] = config.sensors[i].signalReleased;
     s["signalAlarm"] = config.sensors[i].signalAlarm;
     s["signalBattery"] = config.sensors[i].signalBattery;
-    s["autoOffDelay"] = config.sensors[i].autoOffDelay;
-    s["signalAlarmOffDelay"] = config.sensors[i].signalAlarmOffDelay;
-    s["signalBatteryOffDelay"] = config.sensors[i].signalBatteryOffDelay;
+    s["autoOffDelay"] = config.sensors[i].autoReleaseDelay;
+    s["signalAlarmOffDelay"] = config.sensors[i].autoAlarmOffDelay;
+    s["signalBatteryOffDelay"] = config.sensors[i].autoBatteryOffDelay;
   }
 
   String out;
@@ -690,13 +796,13 @@ server.on("/config", HTTP_GET, [](AsyncWebServerRequest* req) {
     const char* addrStr = s["address"].as<const char*>();
     sens.address = addrStr ? strtoul(addrStr, NULL, 16) : 0;
 
-    sens.signalOn = s["signalOn"] | 0;
-    sens.signalOff = s["signalOff"] | 0;
+    sens.signalPushed = s["signalOn"] | 0;
+    sens.signalReleased = s["signalOff"] | 0;
     sens.signalAlarm = s["signalAlarm"] | 0;
     sens.signalBattery = s["signalBattery"] | 0;
-    sens.autoOffDelay = s["autoOffDelay"] | 0;
-    sens.signalAlarmOffDelay = s["signalAlarmOffDelay"] | 0;
-    sens.signalBatteryOffDelay = s["signalBatteryOffDelay"] | 0;
+    sens.autoReleaseDelay = s["autoOffDelay"] | 0;
+    sens.autoAlarmOffDelay = s["signalAlarmOffDelay"] | 0;
+    sens.autoBatteryOffDelay = s["signalBatteryOffDelay"] | 0;
     sens.active = true;
   }
 
@@ -788,7 +894,7 @@ void loop()
       firstCall = false;
     }
 
-//      WiFi_check();
+      if (!isAPMode) WiFi_check();
       RCSwitch_check(!isAPMode);
       yield();  //delay is not allowed here, because homee connection would become unstable
 
