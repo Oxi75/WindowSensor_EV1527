@@ -129,7 +129,7 @@ bool ConfigManager::save()
 
     Serial.printf("[CONFIG] Saving sensor %d: %s (ID: %d)", i, sensors[i].name.c_str(), sensors[i].homeeID);
     Serial.printf(", Type: %s, Address: 0x%02X", sensors[i].type.c_str(), sensors[i].address);
-    Serial.printf(",  Signals - Pushed: %d, Released: %d, Alarm: %d, Battery: %d\n",
+    Serial.printf(",  Signals - 1: %d, 2: %d, 3: %d, 4: %d\n",
                    sensors[i].signal1, sensors[i].signal2, sensors[i].signal3, sensors[i].signal4);
     
     JsonObject s = arr.createNestedObject();
@@ -157,24 +157,7 @@ bool ConfigManager::save()
     }
     if (!isnan(sensors[i].delay4)) {
       s["delay4"] = sensors[i].delay4;
-    }
-    
-    // Also save legacy fields for backward compatibility
-    s["signalOn"]      = sensors[i].signal1;  // Map signal1 to legacy signalOn
-    s["signalOff"]     = sensors[i].signal2;  // Map signal2 to legacy signalOff
-    s["signalAlarm"]   = sensors[i].signal3;  // Map signal3 to legacy signalAlarm
-    s["signalBattery"] = sensors[i].signal4;  // Map signal4 to legacy signalBattery
-    
-    // Legacy delay fields (convert seconds back to milliseconds)
-    if (!isnan(sensors[i].delay1)) {
-      s["autoOffDelay"] = (int)(sensors[i].delay1 * 1000);
-    }
-    if (!isnan(sensors[i].delay3)) {
-      s["signalAlarmOffDelay"] = (int)(sensors[i].delay3 * 1000);
-    }
-    if (!isnan(sensors[i].delay4)) {
-      s["signalBatteryOffDelay"] = (int)(sensors[i].delay4 * 1000);
-    }
+    }    
   }
 
   File f = LittleFS.open(CONFIG_FILE, "w");

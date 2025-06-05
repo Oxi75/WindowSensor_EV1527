@@ -29,7 +29,7 @@
 #define PIN_LED      GPIO_NUM_2            // GPIO pin for the LED
 #define PIN_RECEIVER GPIO_NUM_15
 
-const double FW_VERSION = 0.02;
+const double FW_VERSION = 0.05;
 String FW_VERSION_STR = String(FW_VERSION, 2);
 
 #define CANodeProfileOneButtonRemote 20
@@ -52,10 +52,6 @@ String FW_VERSION_STR = String(FW_VERSION, 2);
 #define AttrID_Sig3       0b10000000  //one part of the Attribute ID of homee, the other one is the sensor number
 #define AttrID_Sig4       0b10100000  //one part of the Attribute ID of homee, the other one is the sensor number
 
-#define SensorSignalOpen    0x0000
-#define SensorSignalClosed  0x0001
-#define SensorSignalAlarm   0x0002
-#define SensorSignalBattery 0x0003
 
 #define REPEATED_TRANSMISSION_DELAY 250 // Zeit in ms, die zwischen wiederholten Übertragungen gewartet wird
 
@@ -621,9 +617,10 @@ server.on("/config", HTTP_GET, [](AsyncWebServerRequest* req) {
     s["signal2"] = config.sensors[i].signal2;
     s["signal3"] = config.sensors[i].signal3;
     s["signal4"] = config.sensors[i].signal4;
-    s["autoOffDelay"] = config.sensors[i].delay1;
-    s["signalAlarmOffDelay"] = config.sensors[i].delay3;
-    s["signalBatteryOffDelay"] = config.sensors[i].delay4;
+    s["delay1"] = config.sensors[i].delay1;
+    s["delay2"] = config.sensors[i].delay2;
+    s["delay3"] = config.sensors[i].delay3;
+    s["delay4"] = config.sensors[i].delay4;
   }
 
   String out;
@@ -706,8 +703,13 @@ server.on("/config", HTTP_GET, [](AsyncWebServerRequest* req) {
     sens.homeeID = id;
     sens.type = s["type"].as<String>();
 
+    // Hier Adresse als Hex-String parsen:
     const char* addrStr = s["address"].as<const char*>();
-    sens.address = addrStr ? strtoul(addrStr, NULL, 16) : 0;
+    if (addrStr != nullptr && strlen(addrStr) > 0) {
+      sens.address = (uint16_t)strtol(addrStr, nullptr, 16);
+    } else {
+      sens.address = 0;
+    }
 
     sens.signal1 = s["signal1"] | 0;
     sens.signal2 = s["signal2"] | 0;
@@ -737,6 +739,7 @@ server.on("/config", HTTP_GET, [](AsyncWebServerRequest* req) {
 
   config.save();
   Serial.println("[CONFIG] Configuration saved.");
+  req->send(200, "text/plain", "Configuration updated successfully."); 
 });
 
 

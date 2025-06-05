@@ -64,6 +64,14 @@
     .hidden {
       display: none;
     }
+    .error {
+      color: red;
+      font-weight: bold;
+    }
+    .success {
+      color: green;
+      font-weight: bold;
+    }
   </style>
 </head>
 <body>
@@ -73,14 +81,15 @@
     <h2>System</h2>
     <p><b>Firmware:</b> <span id="fwver">?</span></p>
     <label><input type="checkbox" id="cfgInSTA"> Enable configuration in standard mode</label>
-    <button onclick="fetch('/restart')">Restart</button>
+    <button onclick="restartDevice()">Restart</button>
 
     <hr>
     <h3>OTA Update</h3>
-    <form method="POST" action="/update" enctype="multipart/form-data">
-      <input type="file" name="update">
-      <input type="submit" value="Update Firmware">
+    <form id="updateForm" enctype="multipart/form-data">
+      <input type="file" name="update" id="updateFile" accept=".bin">
+      <button type="button" onclick="uploadFirmware()">Update Firmware</button>
     </form>
+    <div id="updateStatus"></div>
   </div>
 
   <div class="section">
@@ -109,33 +118,99 @@
     <button onclick="saveConfig()">💾 Save Configuration</button>
     <hr>
     <a href="/config.json" download>🡇 Download configuration</a><br><br>
-    <input type="file" id="cfgfile">
+    <input type="file" id="cfgfile" accept=".json">
     <button onclick="uploadConfig()">Upload Config File</button>
   </div>
 
 <script>
+function restartDevice() {
+  if (confirm('Device will restart. Continue?')) {
+    fetch('/restart', { method: 'POST' })
+      .then(() => alert('Device is restarting...'))
+      .catch(() => alert('Restart command sent'));
+  }
+}
+
+function uploadFirmware() {
+  const fileInput = document.getElementById("updateFile");
+  const file = fileInput.files[0];
+  const statusDiv = document.getElementById("updateStatus");
+  
+  if (!file) {
+    statusDiv.innerHTML = '<div class="error">No file selected</div>';
+    return;
+  }
+  
+  if (!file.name.endsWith('.bin')) {
+    statusDiv.innerHTML = '<div class="error">Please select a .bin firmware file</div>';
+    return;
+  }
+  
+  const formData = new FormData();
+  formData.append('update', file);
+  
+  statusDiv.innerHTML = '<div>Uploading firmware...</div>';
+  
+  fetch('/update', {
+    method: 'POST',
+    body: formData
+  })
+  .then(response => {
+    if (response.ok) {
+      statusDiv.innerHTML = '<div class="success">Firmware uploaded successfully! Device will restart.</div>';
+    } else {
+      statusDiv.innerHTML = '<div class="error">Firmware upload failed. Please try again.</div>';
+    }
+  })
+  .catch(error => {
+    console.error('Upload error:', error);
+    statusDiv.innerHTML = '<div class="error">Upload failed: ' + error.message + '</div>';
+  });
+}
+
 function uploadConfig() {
   const fileInput = document.getElementById("cfgfile");
   const file = fileInput.files[0];
   if (!file) return alert("No file selected");
+  
+  if (!file.name.endsWith('.json')) {
+    alert("Please select a JSON configuration file");
+    return;
+  }
+  
   const reader = new FileReader();
   reader.onload = function () {
-    fetch("/config.json", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: reader.result
-    }).then(res => {
-      alert(res.ok ? "Configuration uploaded successfully!" : "Upload failed.");
-    });
+    try {
+      // Validate JSON before upload
+      JSON.parse(reader.result);
+      
+      fetch("/config.json", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: reader.result
+      }).then(res => {
+        if (res.ok) {
+          alert("Configuration uploaded successfully!");
+          location.reload(); // Reload to show new config
+        } else {
+          alert("Upload failed: " + res.statusText);
+        }
+      }).catch(err => {
+        alert("Upload failed: " + err.message);
+      });
+    } catch (e) {
+      alert("Invalid JSON file: " + e.message);
+    }
   };
   reader.readAsText(file);
 }
 
 let list = document.getElementById("sensorList");
 
-// Sensor type configurations
+// Sensor type configurations - FIXED: Use backend-expected type names
 const sensorTypeConfigs = {
   "OpenClose": {
+    backendType: "OpenClose Sensor",
     signals: [
       { name: "Open Signal", key: "signal1", delayKey: "delay1", needsDelay: false },
       { name: "Close Signal", key: "signal2", delayKey: "delay2", needsDelay: false },
@@ -144,17 +219,20 @@ const sensorTypeConfigs = {
     ]
   },
   "OneButton": {
+    backendType: "OneButton Remote",
     signals: [
       { name: "Button Signal", key: "signal1", delayKey: "delay1", needsDelay: true }
     ]
   },
   "TwoButton": {
+    backendType: "TwoButton Remote",
     signals: [
       { name: "Button 1 Signal", key: "signal1", delayKey: "delay1", needsDelay: true },
       { name: "Button 2 Signal", key: "signal2", delayKey: "delay2", needsDelay: true }
     ]
   },
   "ThreeButton": {
+    backendType: "ThreeButton Remote",
     signals: [
       { name: "Button 1 Signal", key: "signal1", delayKey: "delay1", needsDelay: true },
       { name: "Button 2 Signal", key: "signal2", delayKey: "delay2", needsDelay: true },
@@ -162,6 +240,7 @@ const sensorTypeConfigs = {
     ]
   },
   "FourButton": {
+    backendType: "FourButton Remote",
     signals: [
       { name: "Button 1 Signal", key: "signal1", delayKey: "delay1", needsDelay: true },
       { name: "Button 2 Signal", key: "signal2", delayKey: "delay2", needsDelay: true },
@@ -170,6 +249,16 @@ const sensorTypeConfigs = {
     ]
   }
 };
+
+// FIXED: Function to map backend type names to frontend keys
+function getTypeKeyFromBackendType(backendType) {
+  for (const [key, config] of Object.entries(sensorTypeConfigs)) {
+    if (config.backendType === backendType) {
+      return key;
+    }
+  }
+  return "OpenClose"; // default
+}
 
 function renderSensors(sensors) {
   list.innerHTML = "";
@@ -182,19 +271,27 @@ function renderSensors(sensors) {
     row.className = "sensor";
     row.dataset.index = i;
     
+    // FIXED: Map backend type to frontend key
+    const frontendType = getTypeKeyFromBackendType(s.type);
+    
     // Create signal groups HTML
     let signalGroupsHTML = "";
     Object.keys(sensorTypeConfigs).forEach(type => {
       const config = sensorTypeConfigs[type];
-      const isVisible = s.type === type;
+      const isVisible = frontendType === type;
       
       signalGroupsHTML += `<div class="signal-type-group ${isVisible ? '' : 'hidden'}" data-type="${type}">`;
       
       config.signals.forEach(signal => {
         const signalValue = s[signal.key] ?? 0;
-        const delayValue = s[signal.delayKey] !== undefined && s[signal.delayKey] !== null && !isNaN(s[signal.delayKey]) ? s[signal.delayKey] : "";
+        // FIXED: Better NaN handling
+        let delayValue = "";
+        if (s[signal.delayKey] !== undefined && s[signal.delayKey] !== null && !isNaN(s[signal.delayKey])) {
+          delayValue = s[signal.delayKey];
+        }
+        
         const delayHTML = signal.needsDelay ? 
-          `<label>Delay (s): <input type="number" class="${signal.delayKey}" value="${delayValue}" min="0" step="0.1" placeholder="NaN"></label>` : 
+          `<label>Delay (s): <input type="number" class="${signal.delayKey}" value="${delayValue}" min="0" step="0.1" placeholder="No delay"></label>` : 
           `<input type="hidden" class="${signal.delayKey}" value="">`;
         
         signalGroupsHTML += `
@@ -219,11 +316,11 @@ function renderSensors(sensors) {
       </label>
       <label>Type:
         <select class="type" onchange="updateSensorTypeVisibility(${i})">
-          <option value="OpenClose" ${s.type === "OpenClose" ? "selected" : ""}>OpenClose Sensor</option>
-          <option value="OneButton" ${s.type === "OneButton" ? "selected" : ""}>OneButton Remote</option>
-          <option value="TwoButton" ${s.type === "TwoButton" ? "selected" : ""}>TwoButton Remote</option>
-          <option value="ThreeButton" ${s.type === "ThreeButton" ? "selected" : ""}>ThreeButton Remote</option>
-          <option value="FourButton" ${s.type === "FourButton" ? "selected" : ""}>FourButton Remote</option>
+          <option value="OpenClose" ${frontendType === "OpenClose" ? "selected" : ""}>OpenClose Sensor</option>
+          <option value="OneButton" ${frontendType === "OneButton" ? "selected" : ""}>OneButton Remote</option>
+          <option value="TwoButton" ${frontendType === "TwoButton" ? "selected" : ""}>TwoButton Remote</option>
+          <option value="ThreeButton" ${frontendType === "ThreeButton" ? "selected" : ""}>ThreeButton Remote</option>
+          <option value="FourButton" ${frontendType === "FourButton" ? "selected" : ""}>FourButton Remote</option>
         </select>
       </label>
       <label>Name: <input type="text" class="name" value="${s.name || ""}"></label>
@@ -262,27 +359,30 @@ function emptySensor() {
     active: true,
     name: "",
     homeeID: 0,
-    type: "OpenClose",
+    type: "OpenClose Sensor", // FIXED: Use backend-expected type name
     address: 0,
     signal1: 0,
     signal2: 0,
     signal3: 0,
     signal4: 0,
-    delay1: "",
-    delay2: "",
-    delay3: "",
-    delay4: ""
+    delay1: null,
+    delay2: null,
+    delay3: null,
+    delay4: null
   };
 }
 
 function collectSensors() {
   const sensors = [];
   document.querySelectorAll(".sensor").forEach(s => {
+    const frontendType = s.querySelector(".type").value;
+    const backendType = sensorTypeConfigs[frontendType]?.backendType || "OpenClose Sensor";
+    
     const sensorData = {
       active: s.querySelector(".active").checked,
       name: s.querySelector(".name").value.trim(),
       homeeID: parseInt(s.querySelector(".homeeID").value) || 0,
-      type: s.querySelector(".type").value,
+      type: backendType, // FIXED: Use backend-expected type name
       address: parseInt(s.querySelector(".address").value, 16) || 0,
       signal1: parseInt(s.querySelector(".signal1").value) || 0,
       signal2: parseInt(s.querySelector(".signal2").value) || 0,
@@ -290,16 +390,16 @@ function collectSensors() {
       signal4: parseInt(s.querySelector(".signal4").value) || 0
     };
     
-    // Add delay values, convert empty strings to NaN
+    // FIXED: Better delay handling - convert empty strings to null
     const delay1 = s.querySelector(".delay1").value;
     const delay2 = s.querySelector(".delay2").value;
     const delay3 = s.querySelector(".delay3").value;
     const delay4 = s.querySelector(".delay4").value;
     
-    sensorData.delay1 = delay1 === "" ? null : parseFloat(delay1);
-    sensorData.delay2 = delay2 === "" ? null : parseFloat(delay2);
-    sensorData.delay3 = delay3 === "" ? null : parseFloat(delay3);
-    sensorData.delay4 = delay4 === "" ? null : parseFloat(delay4);
+    sensorData.delay1 = (delay1 === "" || delay1 === "NaN") ? null : parseFloat(delay1);
+    sensorData.delay2 = (delay2 === "" || delay2 === "NaN") ? null : parseFloat(delay2);
+    sensorData.delay3 = (delay3 === "" || delay3 === "NaN") ? null : parseFloat(delay3);
+    sensorData.delay4 = (delay4 === "" || delay4 === "NaN") ? null : parseFloat(delay4);
     
     sensors.push(sensorData);
   });
@@ -321,10 +421,14 @@ function removeSensor(index) {
 
 function saveConfig() {
   const data = {
-    system: { cfgInSTA: document.getElementById("cfgInSTA").checked },
+    system: { 
+      cfgInSTA: document.getElementById("cfgInSTA").checked,
+      cfgInStandardMode: document.getElementById("cfgInSTA").checked // FIXED: Map to both fields
+    },
     wifi: {
       ssid: document.getElementById("ssid").value,
-      password: document.getElementById("pw").value,  // Geändert von 'pw' zu 'password'
+      pw: document.getElementById("pw").value,      // FIXED: Use 'pw' for unencrypted
+      password: document.getElementById("pw").value, // FIXED: Also send as 'password'
       ip: document.getElementById("ip").value,
       gw: document.getElementById("gw").value,
       mask: document.getElementById("mask").value
@@ -332,31 +436,64 @@ function saveConfig() {
     sensors: collectSensors()
   };
 
+  console.log("Saving config:", data); // Debug output
+
   fetch("/config", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data)
-  }).then(() => alert("Configuration saved successfully."));
+  })
+  .then(response => {
+    if (response.ok) {
+      alert("Configuration saved successfully.");
+    } else {
+      alert("Failed to save configuration: " + response.statusText);
+    }
+  })
+  .catch(error => {
+    console.error("Save error:", error);
+    alert("Failed to save configuration: " + error.message);
+  });
 }
 
+// FIXED: Better config loading with error handling
 fetch("/config")
-  .then(res => res.json())
+  .then(res => {
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    }
+    return res.json();
+  })
   .then(json => {
+    console.log("Loaded config:", json); // Debug output
+    
     document.getElementById("fwver").textContent = json.fw || "?";
-    document.getElementById("cfgInSTA").checked = json.system?.cfgInSTA;
+    document.getElementById("cfgInSTA").checked = json.system?.cfgInSTA || json.system?.cfgInStandardMode || false;
     document.getElementById("ssid").value = json.wifi?.ssid || "";
-    document.getElementById("pw").value = json.wifi?.password || "";  // Geändert von 'pw' zu 'password'
+    // FIXED: Handle both 'password' and 'pw' fields
+    document.getElementById("pw").value = json.wifi?.password || json.wifi?.pw || "";
     document.getElementById("ip").value = json.wifi?.ip || "";
     document.getElementById("gw").value = json.wifi?.gw || "";
     document.getElementById("mask").value = json.wifi?.mask || "";
     renderSensors(json.sensors || []);
+  })
+  .catch(error => {
+    console.error("Config load error:", error);
+    alert("Failed to load configuration: " + error.message);
+    // Load with defaults
+    renderSensors([]);
   });
 
 document.getElementById("cfgInSTA").addEventListener("change", () => {
   fetch("/updateSystem", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ cfgInSTA: document.getElementById("cfgInSTA").checked })
+    body: JSON.stringify({ 
+      cfgInSTA: document.getElementById("cfgInSTA").checked,
+      cfgInStandardMode: document.getElementById("cfgInSTA").checked
+    })
+  }).catch(error => {
+    console.error("System update error:", error);
   });
 });
 
@@ -370,11 +507,23 @@ function updateSignalDisplay(data) {
   document.getElementById("timestamp").textContent = new Date().toLocaleString();
 }
 
-// Optional: Polling alle 2s
+// Optional: Polling alle 2s mit Fehlerbehandlung
 setInterval(() => {
   fetch("/lastsignal")
-    .then(res => res.json())
-    .then(data => updateSignalDisplay(data));
+    .then(res => {
+      if (res.ok) {
+        return res.json();
+      }
+    })
+    .then(data => {
+      if (data) {
+        updateSignalDisplay(data);
+      }
+    })
+    .catch(error => {
+      // Silent fail for polling
+      console.log("Signal polling error:", error);
+    });
 }, 2000);
 </script>
 </body>
