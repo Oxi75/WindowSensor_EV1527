@@ -65,40 +65,20 @@ bool ConfigManager::load()
       sensors[i].delay4 = s["delay4"];
     } else {
       sensors[i].delay4 = NAN;
-    }
+    }   
     
-    // Legacy support - map old fields to new ones if new ones are not present
-    if (s.containsKey("signalOn") && !s.containsKey("signal1")) {
-      sensors[i].signal1 = s["signalOn"] | 0;
-      sensors[i].signalPushed = sensors[i].signal1; // Update legacy field too
-    }
-    if (s.containsKey("signalOff") && !s.containsKey("signal2")) {
-      sensors[i].signal2 = s["signalOff"] | 0;
-      sensors[i].signalReleased = sensors[i].signal2; // Update legacy field too
-    }
-    if (s.containsKey("signalAlarm") && !s.containsKey("signal3")) {
-      sensors[i].signal3 = s["signalAlarm"] | 0;
-      sensors[i].signalAlarm = sensors[i].signal3; // Update legacy field too
-    }
-    if (s.containsKey("signalBattery") && !s.containsKey("signal4")) {
-      sensors[i].signal4 = s["signalBattery"] | 0;
-      sensors[i].signalBattery = sensors[i].signal4; // Update legacy field too
-    }
-    
-    // Legacy delay support
-    if (s.containsKey("autoOffDelay") && isnan(sensors[i].delay1)) {
-      sensors[i].delay1 = (s["autoOffDelay"] | 0) / 1000.0; // Convert ms to seconds
-      sensors[i].autoReleaseDelay = s["autoOffDelay"] | 0; // Update legacy field too
-    }
-    if (s.containsKey("signalAlarmOffDelay") && isnan(sensors[i].delay3)) {
-      sensors[i].delay3 = (s["signalAlarmOffDelay"] | 0) / 1000.0; // Convert ms to seconds
-      sensors[i].autoAlarmOffDelay = s["signalAlarmOffDelay"] | 0; // Update legacy field too
-    }
-    if (s.containsKey("signalBatteryOffDelay") && isnan(sensors[i].delay4)) {
-      sensors[i].delay4 = (s["signalBatteryOffDelay"] | 0) / 1000.0; // Convert ms to seconds
-      sensors[i].autoBatteryOffDelay = s["signalBatteryOffDelay"] | 0; // Update legacy field too
-    }
-    
+    RTData[i].OCSensor = false;
+    if (sensors[i].type == "OpenClose Sensor")
+    {
+      RTData[i].OCSensor = true; // Mark as Open/Close Sensor
+      RTData[i].btnCnt = 4;
+    }     
+    else if (sensors[i].type == "FourButton Remote") RTData[i].btnCnt = 4; // Four buttons
+    else if (sensors[i].type == "ThreeButton Remote") RTData[i].btnCnt = 3; // Three buttons
+    else if (sensors[i].type == "TwoButton Remote") RTData[i].btnCnt = 2; // Two buttons
+    else if (sensors[i].type == "OneButton Remote") RTData[i].btnCnt = 1; // One button
+    else RTData[i].btnCnt = 0; // Unknown type, no buttons
+
     i++;
   }
 
@@ -117,13 +97,7 @@ bool ConfigManager::load()
     sensors[0].delay1 = NAN;
     sensors[0].delay2 = NAN;
     sensors[0].delay3 = NAN;
-    sensors[0].delay4 = NAN;
-    
-    // Update legacy fields for compatibility
-    sensors[0].signalPushed = sensors[0].signal1;
-    sensors[0].signalReleased = sensors[0].signal2;
-    sensors[0].signalAlarm = sensors[0].signal3;
-    sensors[0].signalBattery = sensors[0].signal4;
+    sensors[0].delay4 = NAN;    
   }
   else {
     Serial.printf("[CONFIG] %d sensor(s) loaded.\n", i);
@@ -137,6 +111,9 @@ bool ConfigManager::save()
 {
   DynamicJsonDocument doc(4096);
 
+  Serial.println("[CONFIG] Saving configuration...\n");
+
+   
   doc["system"]["cfgInSTA"] = cfgInSTA;
   doc["system"]["cfgInStandardMode"] = cfgInStandardMode;  
   doc["wifi"]["ssid"] = ssid;
@@ -146,8 +123,14 @@ bool ConfigManager::save()
   doc["wifi"]["mask"] = subnet;
 
   JsonArray arr = doc.createNestedArray("sensors");
-  for (int i = 0; i < MAX_SENSORS; i++) {
+  for (int i = 0; i < MAX_SENSORS; i++)
+  {
     if (sensors[i].name == "") continue;
+
+    Serial.printf("[CONFIG] Saving sensor %d: %s (ID: %d)", i, sensors[i].name.c_str(), sensors[i].homeeID);
+    Serial.printf(", Type: %s, Address: 0x%02X", sensors[i].type.c_str(), sensors[i].address);
+    Serial.printf(",  Signals - Pushed: %d, Released: %d, Alarm: %d, Battery: %d\n",
+                   sensors[i].signal1, sensors[i].signal2, sensors[i].signal3, sensors[i].signal4);
     
     JsonObject s = arr.createNestedObject();
     s["active"]   = sensors[i].active;

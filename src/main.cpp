@@ -29,10 +29,14 @@
 #define PIN_LED      GPIO_NUM_2            // GPIO pin for the LED
 #define PIN_RECEIVER GPIO_NUM_15
 
-const double FW_VERSION = 0.05;
+const double FW_VERSION = 0.02;
 String FW_VERSION_STR = String(FW_VERSION, 2);
 
 #define CANodeProfileOneButtonRemote 20
+#define CANodeProfileTwoButtonRemote 24
+#define CANodeProfileThreeButtonRemote 25
+#define CANodeProfileFourButtonRemote 26
+
 #define CANodeProfileOpenCloseSensor 2000
 #define CAAttributeTypeOpenClose 14
 #define CAAttributeTypeAlarm 108
@@ -41,10 +45,13 @@ String FW_VERSION_STR = String(FW_VERSION, 2);
 #define CAAttributeTypeFirmwareRevision 44
 #define CAAttributeTypeBinaryInput 19
 #define CAAttributeTypeButtonState 40
-#define AttrID_FwRev      0b00000000
-#define AttrID_State      0b01000000
-#define AttrID_Alarm      0b10000000
-#define AttrID_BattLevel  0b11000000
+
+#define AttrID_FwRev      0b00100000  //one part of the Attribute ID of homee, the other one is the sensor number
+#define AttrID_Sig1       0b01000000  //one part of the Attribute ID of homee, the other one is the sensor number
+#define AttrID_Sig2       0b01100000  //one part of the Attribute ID of homee, the other one is the sensor number
+#define AttrID_Sig3       0b10000000  //one part of the Attribute ID of homee, the other one is the sensor number
+#define AttrID_Sig4       0b10100000  //one part of the Attribute ID of homee, the other one is the sensor number
+
 #define SensorSignalOpen    0x0000
 #define SensorSignalClosed  0x0001
 #define SensorSignalAlarm   0x0002
@@ -232,42 +239,38 @@ void homee_setup()
       continue;
     }
 
-    if ((config.sensors[sns].type != "Window-Sensor") && (config.sensors[sns].type != "Button"))
+    if ((config.sensors[sns].type != "OpenClose Sensor") 
+     && (config.sensors[sns].type != "OneButton Remote") && (config.sensors[sns].type != "TwoButton Remote")
+     && (config.sensors[sns].type != "ThreeButton Remote") && (config.sensors[sns].type != "FourButton Remote"))
     {
       Serial.printf("[CONFIG] Sensor %d has an invalid type '%s' -> skipping.\n", sns, config.sensors[sns].type.c_str());
       continue;
     }
 
-    Serial.printf("setup sensor %s with address 0x%05x as %s as homee device with ID %d\n", config.sensors[sns].name.c_str(), config.sensors[sns].address, config.sensors[sns].type.c_str(), config.sensors[sns].homeeID);
+    Serial.printf("setup sensor %s with address 0x%05x as %s at homee device with ID %d\n", config.sensors[sns].name.c_str(), config.sensors[sns].address, config.sensors[sns].type.c_str(), config.sensors[sns].homeeID);
 
+    //all checks done, now new add the new sensor with all its attributes to homee    
     node *n;
     nodeAttributes *na;
+    na = new nodeAttributes(CAAttributeTypeFirmwareRevision); 
+    na->setName("Firmware Version");
+    na->setId(AttrID_FwRev | sns); //unique ID for each sensor
+    na->setUnit("");  
+    na->setMinimumValue(0.0);
+    na->setMaximumValue(1000.0); 
+    na->setCurrentValue(FW_VERSION);
+    na->setEditable(false);
+    na->setCallback(nullptr);
 
-    //Neues Gerät
-    if (config.sensors[sns].type == "Window-Sensor")
+    if (config.sensors[sns].type == "OpenClose Sensor")
     {
-
-      //A Window-Sensor needs at least a value attribute for the open/closed state
-      //additionally there might be an alaram and a battery attribute
-
       n = new node(config.sensors[sns].homeeID, CANodeProfileOpenCloseSensor, config.sensors[sns].name);     
-
-      na = new nodeAttributes(CAAttributeTypeFirmwareRevision); 
-      na->setName("Firmware Version");
-      na->setId(AttrID_FwRev | sns << 1); //unique ID for each sensor
-      na->setUnit("");  
-      na->setMinimumValue(0);
-      na->setMaximumValue(100); 
-      na->setCurrentValue(FW_VERSION);
-      na->setEditable(false);
-      na->setCallback(nullptr);
-      n->AddAttributes(na);       //set attribute to node
-
+      n->AddAttributes(na);       //set attribute Firmware to node
 
       //Attribut Status
       na = new nodeAttributes(CAAttributeTypeOpenClose);  //open / closed state
       na->setName("Status");
-      na->setId(AttrID_State | sns << 1); //unique ID for each sensor        
+      na->setId(AttrID_Sig1 | sns); //unique ID for each sensor        
       na->setMinimumValue(0);
       na->setMaximumValue(1); 
       na->setCurrentValue(0);
@@ -275,70 +278,101 @@ void homee_setup()
       na->setEditable(false);
       n->AddAttributes(na);       //set attribute to node
 
-      if(config.sensors[sns].signalAlarm > 0)
-      {
-        //Attribut Alarm
-        na = new nodeAttributes(CAAttributeTypeAlarm);  //CAAttributeTypeAlarm
-        na->setName("Alarm");
-        na->setId(AttrID_Alarm | sns << 1); //unique ID for each sensor
-        na->setUnit("");  
-        na->setMinimumValue(0);
-        na->setMaximumValue(1); 
-        na->setCurrentValue(0);  //default value
-        na->setEditable(false);
-        na->setCallback(nullptr);
-        n->AddAttributes(na);       //set attribute to node
-      }
-
-      if(config.sensors[sns].signalBattery > 0)
-      {
-        //Attribut Batterie
-        na = new nodeAttributes(CAAttributeTypeBatteryLevel);
-        na->setName("Battery Level");
-        na->setId(AttrID_BattLevel | sns << 1); //unique ID for each sensor
-        na->setUnit("%");
-        na->setMinimumValue(0);
-        na->setMaximumValue(100); 
-        na->setCurrentValue(100);  //default value
-        na->setEditable(false);
-        na->setCallback(nullptr);
-        n->AddAttributes(na);       //set attribute to node
-      }
-    }
-    else if (config.sensors[sns].type == "Button")
-    {
-      //A Push-Button needs only the value attribute for the pushed state
-      n = new node(config.sensors[sns].homeeID, CANodeProfileOneButtonRemote, config.sensors[sns].name);
-
-      na = new nodeAttributes(CAAttributeTypeFirmwareRevision); 
-      na->setName("Firmware Version");
-      na->setId(AttrID_FwRev | sns << 1); //unique ID for each sensor
+      //Attribut Alarm
+      na = new nodeAttributes(CAAttributeTypeAlarm);  //CAAttributeTypeAlarm
+      na->setName("Alarm");
+      na->setId(AttrID_Sig3);   //unique ID for each sensor
       na->setUnit("");  
+      na->setMinimumValue(0);
+      na->setMaximumValue(1); 
+      na->setCurrentValue(0);  //default value
+      na->setEditable(false);
+      na->setCallback(nullptr);
+      n->AddAttributes(na);       //set attribute to node
+
+      //Attribut Batterie
+      na = new nodeAttributes(CAAttributeTypeBatteryLevel);
+      na->setName("Battery Level");
+      na->setId(AttrID_Sig4 | sns << 1); //unique ID for each sensor
+      na->setUnit("%");
       na->setMinimumValue(0);
       na->setMaximumValue(100); 
-      na->setCurrentValue(FW_VERSION);
+      na->setCurrentValue(99);  //default value
       na->setEditable(false);
       na->setCallback(nullptr);
       n->AddAttributes(na);       //set attribute to node
+    }
+    else  //must be an x-button remote
+    {
+      uint32_t vhihProfile = 0;
+      if (config.sensors[sns].type == "OneButton Remote")  vhihProfile = CANodeProfileOneButtonRemote;
+      else if (config.sensors[sns].type == "TwoButton Remote") vhihProfile = CANodeProfileTwoButtonRemote;
+      else if (config.sensors[sns].type == "ThreeButton Remote") vhihProfile = CANodeProfileThreeButtonRemote;
+      else if (config.sensors[sns].type == "FourButton Remote") vhihProfile = CANodeProfileFourButtonRemote;
 
-      //Attribut Status
+      n = new node(config.sensors[sns].homeeID, vhihProfile, config.sensors[sns].name);
+      n->AddAttributes(na);       //set attribute Firmware to node
+
+
+      //Attribut for first Button
       na = new nodeAttributes(CAAttributeTypeButtonState);  //open / closed state
-      na->setName("Status");
-      na->setId(AttrID_State | sns << 1); //unique ID for each sensor        
-      na->setUnit("");  
+      na->setName("Status Button1");
+      na->setId(AttrID_Sig1 | sns); //unique ID for each sensor        
       na->setMinimumValue(0);
       na->setMaximumValue(1); 
       na->setCurrentValue(0);
       na->setCallback(nullptr);
       na->setEditable(false);
-      n->AddAttributes(na);       //set attribute to node  
-    }
+      n->AddAttributes(na);       //set attribute to node
 
-    //Gerät hinzufügen
-    vhih.addNode(n);
+      if (config.sensors[sns].type != "OneButton Remote")
+      {
+        //Attribut Status Button2
+        na = new nodeAttributes(CAAttributeTypeButtonState);  //open / closed state
+        na->setName("Status Button2");
+        na->setId(AttrID_Sig2 | sns); //unique ID for each sensor        
+        na->setMinimumValue(0);
+        na->setMaximumValue(1); 
+        na->setCurrentValue(0);
+        na->setCallback(nullptr);
+        na->setEditable(false);
+        n->AddAttributes(na);       //set attribute to node
+
+
+        if (config.sensors[sns].type != "TwoButton Remote")
+        {
+          //Attribut Status Button3
+          na = new nodeAttributes(CAAttributeTypeButtonState);  //open / closed state
+          na->setName("Status Button3");
+          na->setId(AttrID_Sig3 | sns); //unique ID for each sensor        
+          na->setMinimumValue(0);
+          na->setMaximumValue(1); 
+          na->setCurrentValue(0);
+          na->setCallback(nullptr);
+          na->setEditable(false);
+          n->AddAttributes(na);       //set attribute to node
+
+          if (config.sensors[sns].type != "ThreeButton Remote")
+          {
+            //Attribut Status Button4
+            na = new nodeAttributes(CAAttributeTypeButtonState);  //open / closed state
+            na->setName("Status Button4");
+            na->setId(AttrID_Sig4 | sns); //unique ID for each sensor        
+            na->setMinimumValue(0);
+            na->setMaximumValue(1); 
+            na->setCurrentValue(0);
+            na->setCallback(nullptr);
+            na->setEditable(false);
+            n->AddAttributes(na);       //set attribute to node
+          }
+        }
+      }
+    }
+    
+    vhih.addNode(n); //add the new node to homee
   }
 
-  vhih.start();
+  vhih.start();  //start homee API
 
   Serial.println("Homee configured");
   delay(1000);  
@@ -348,53 +382,64 @@ void homee_setup()
 static double lastValue = 1;
 void homee_updateValues(uint32_t snsNo)
 {  
-  Serial.printf("update homee values for Sensor No %d (%s)\n", snsNo, config.sensors[snsNo].type);
+//  Serial.printf("update homee values for Sensor No %d (%s)\n", snsNo, config.sensors[snsNo].type);
 
   // Update Sensor or Button-State
   nodeAttributes *na;
-  if (config.sensors[snsNo].type == "Window-Sensor")
+  if (config.sensors[snsNo].type == "OpenClose-Sensor")
   {
-    if (config.sensors[snsNo].signalPushed || config.sensors[snsNo].signalReleased) 
+    if (config.RTData[snsNo].signal1 || config.RTData[snsNo].signal2)  //status has changed
     {
-      na = vhih.getAttributeById(AttrID_State | snsNo << 1);
-      na->setCurrentValue(config.sensors[snsNo].valueState);
-      if (na) vhih.updateAttributeValue(na, na->getCurrentValue());
-      delay(200);
-      yield();
-    } 
+      na = vhih.getAttributeById(AttrID_Sig1 | snsNo);
 
-    if (config.sensors[snsNo].signalBattery) 
-    {
-      na = vhih.getAttributeById(AttrID_BattLevel | snsNo << 1);
-      na->setCurrentValue(config.sensors[snsNo].valueBattery);
+      na->setCurrentValue(config.RTData[snsNo].signal1_val);
       if (na) vhih.updateAttributeValue(na, na->getCurrentValue());
       delay(200);
-      yield();
-    } 
-
-    if (config.sensors[snsNo].signalAlarm) 
-    {
-      na = vhih.getAttributeById(AttrID_Alarm | snsNo << 1);
-      na->setCurrentValue(config.sensors[snsNo].valueAlarm);
-      if (na) vhih.updateAttributeValue(na, na->getCurrentValue());
-      delay(200);
-      yield();
-    } 
-    return;
+      yield();       
+    }
   }
 
-  if (config.sensors[snsNo].type == "Button")
+  else if (config.sensors[snsNo].type == "OneButton Remote"
+    || config.sensors[snsNo].type == "TwoButton Remote"
+    || config.sensors[snsNo].type == "ThreeButton Remote"
+    || config.sensors[snsNo].type == "FourButton Remote")
   {
-    if (config.sensors[snsNo].signalPushed) 
+    if (config.sensors[snsNo].signal1) //Button 1 has changed
     {
-      na = vhih.getAttributeById(AttrID_State | snsNo << 1);
-      na->setCurrentValue(config.sensors[snsNo].valueState);
+      na = vhih.getAttributeById(AttrID_Sig1 | snsNo);
+      na->setCurrentValue(config.RTData[snsNo].signal1_val);
+      if (na) vhih.updateAttributeValue(na, na->getCurrentValue());
+      delay(200);
+      yield();
+    }
+
+    if ((config.sensors[snsNo].signal2) && (config.sensors[snsNo].type != "OneButtonRemote")) //Button 2 has changed
+    {
+      na = vhih.getAttributeById(AttrID_Sig2 | snsNo);
+      na->setCurrentValue(config.RTData[snsNo].signal2_val);
+      if (na) vhih.updateAttributeValue(na, na->getCurrentValue());
+      delay(200);
+      yield();
+    }
+  }
+
+  if (config.sensors[snsNo].type != "OneButton Remote" && (config.sensors[snsNo].type != "TwoButton Remote") && (config.RTData[snsNo].signal3))
+  {
+    na = vhih.getAttributeById(AttrID_Sig3 | snsNo);
+    na->setCurrentValue(config.RTData[snsNo].signal3_val);
+    if (na) vhih.updateAttributeValue(na, na->getCurrentValue());
+    delay(200);
+    yield();
+
+    if (config.sensors[snsNo].type != "ThreeButton Remote" && (config.RTData[snsNo].signal4))
+    {
+      na = vhih.getAttributeById(AttrID_Sig4 | snsNo);
+      na->setCurrentValue(config.RTData[snsNo].signal4_val);
       if (na) vhih.updateAttributeValue(na, na->getCurrentValue());
       delay(200);
       yield();
     } 
-    return;
-  }
+  } 
 } 
 
 
@@ -436,14 +481,14 @@ void RCSwitch_check(bool HomeeEnabled)
     lastSignal.sensorAddress.toUpperCase(); // Adresse in Großbuchstaben umwandeln
 
     mySwitch.resetAvailable(); // Verfügbare Daten zurücksetzen
-
   }
 
   for (uint32_t sns = 0; sns < MAX_SENSORS; sns++)  // Durchlaufe alle konfigurierten Sensoren bis Sensor gefunden oder alle Sensoren geprüft wurden
   {
     // Prüfen, ob der Sensor aktiv ist und eine gültige Konfiguration hat
-    if ((config.sensors[sns].name == "") || (!config.sensors[sns].active) || (config.sensors[sns].homeeID == 0))
+    if ((config.sensors[sns].name == "") || (!config.sensors[sns].active) || (config.sensors[sns].homeeID == 0) || (config.sensors[sns].address == 0))
     {
+      // Wenn der Sensor nicht aktiv ist oder keine gültige Konfiguration hat, überspringe ihn
       //Serial.printf("[CONFIG] Sensor %d is not active or has no name or invalid homeeID -> skipping.\n", sns);      
       continue;
     }
@@ -463,80 +508,76 @@ void RCSwitch_check(bool HomeeEnabled)
     {
       // Sensor gefunden
       Serial.printf("Sensor %s has send value %d\n", config.sensors[sns].name.c_str(), snsValue); // Debug-Ausgabe der Adresse und des Wertes
-    
-      signalPushed    = snsValue == config.sensors[sns].signalPushed;     // Signal für geschlossen
-      signalReleased  = snsValue == config.sensors[sns].signalReleased;   // Signal für offen
-      signalAlarm     = snsValue == config.sensors[sns].signalAlarm;      // Signal für Alarm
-      signalBattery   = snsValue == config.sensors[sns].signalBattery;    // Signal für Batteriewarnung
+
+      config.RTData[sns].signal1 = config.sensors[sns].signal1 == snsValue; // Signal1 was set
+      config.RTData[sns].signal2 = config.sensors[sns].signal2 == snsValue; // Signal2 was set
+      config.RTData[sns].signal3 = config.sensors[sns].signal3 == snsValue; // Signal3 was set  
+      config.RTData[sns].signal4 = config.sensors[sns].signal4 == snsValue; // Signal4 was set
 
       //Zeitstempel aktualisieren, wenn das Signal geändert wurde
-      if (signalPushed)
+      if (config.RTData[sns].signal1)
       {        
-        if (now - config.sensors[sns].signalPushed_TS < REPEATED_TRANSMISSION_DELAY)  //repeated transmissions must be surpressed
+        if ((now - config.RTData[sns].signal1_TS) < REPEATED_TRANSMISSION_DELAY)  //repeated transmissions must be surpressed
         {
-          signalPushed = false; // Wenn das Signal zu schnell wiederholt wird, ignoriere es
+          config.RTData[sns].signal1 = false;   // igrnore the signal if it is repeated too fast
         }
-        config.sensors[sns].signalPushed_TS = now; // Zeitstempel für geschlossenes Signal aktualisieren
-
-        stateValue = 1;  //set attribute value for pushed / closed state
+        config.RTData[sns].signal1_TS = now;    //update timestamp for signal1
       }
-      if (signalReleased)
-      {
-        if (now - config.sensors[sns].signalReleased < REPEATED_TRANSMISSION_DELAY)  //repeated transmissions must be surpressed
+      else if (config.RTData[sns].signal2)
+      {        
+        if ((now - config.RTData[sns].signal2_TS) < REPEATED_TRANSMISSION_DELAY)  //repeated transmissions must be surpressed
         {
-          signalReleased = false; // Wenn das Signal zu schnell wiederholt wird, ignoriere es
+          config.RTData[sns].signal2 = false;   // igrnore the signal if it is repeated too fast
         }
-        config.sensors[sns].signalReleased_TS = now; // Zeitstempel für geschlossenes Signal aktualisieren
-
-        stateValue = 0;  //set attribute value for released / open state
+        config.RTData[sns].signal2_TS = now;    //update timestamp for signal2
       }
-      if (signalAlarm)
-      {
-        if (now - config.sensors[sns].signalAlarm_TS < REPEATED_TRANSMISSION_DELAY)  //repeated transmissions must be surpressed
+      else if (config.RTData[sns].signal3)
+      {        
+        if ((now - config.RTData[sns].signal3_TS) < REPEATED_TRANSMISSION_DELAY)  //repeated transmissions must be surpressed
         {
-          signalAlarm = false; // Wenn das Signal zu schnell wiederholt wird, ignoriere es
+          config.RTData[sns].signal3 = false;   // igrnore the signal if it is repeated too fast
         }
-        config.sensors[sns].signalAlarm_TS = now; // Zeitstempel für geschlossenes Signal aktualisieren
-
-        alarmValue = 1; //set attribute value for alarm state
+        config.RTData[sns].signal3_TS = now;    //update timestamp for signal3
       }
-      if (signalBattery)
-      {
-        if (now - config.sensors[sns].signalBattery_TS < REPEATED_TRANSMISSION_DELAY)  //repeated transmissions must be surpressed
+      else if (config.RTData[sns].signal4)
+      {        
+        if ((now - config.RTData[sns].signal4_TS) < REPEATED_TRANSMISSION_DELAY)  //repeated transmissions must be surpressed
         {
-          signalBattery = false; // Wenn das Signal zu schnell wiederholt wird, ignoriere es
+          config.RTData[sns].signal4 = false;   // igrnore the signal if it is repeated too fast
         }
-          config.sensors[sns].signalBattery_TS = now; // Zeitstempel für geschlossenes Signal aktualisieren
-
-        batteryValue = 1; //set attribute value for battery state
+        config.RTData[sns].signal4_TS = now;    //update timestamp for signal4
       }
     }
 
-    // even if address does not match, the auto-X-feature might require to update the sensor state
-    if (now - config.sensors[sns].signalPushed_TS > config.sensors[sns].autoReleaseDelay)
+
+    // even if address does not match, the auto-release-feature might require to update the sensor state in homee   
+    if ((config.RTData[sns].btnCnt >= 4) && (now - config.RTData[sns].signal4_TS > config.sensors[sns].delay4))
     {
-      signalReleased = true;                        // set signalReleased to force a value update
-      stateValue = 0;                               //set attribute value for released / open state
-      config.sensors[sns].signalPushed_TS = now - REPEATED_TRANSMISSION_DELAY;  // update the timestamp for released signal but enabled new transmissions
+      config.RTData[sns].signal4 = true;            //signal4 must be updated
+      if (config.RTData[sns].OCSensor) config.RTData[sns].signal4_val = 66.0;        //set new battery level value which does not trigger a warning
+      else config.RTData[sns].signal4_val = 0;       //button 4 is released
     }
 
-    if (now - config.sensors[sns].signalAlarm_TS > config.sensors[sns].autoAlarmOffDelay)
+    if ((config.RTData[sns].btnCnt >= 3) && (now - config.RTData[sns].signal3_TS > config.sensors[sns].delay3))
     {
-      signalAlarm = true;                           //set signalReleased to force a value update
-      config.sensors[sns].valueAlarm = 0;           //set attribute value for alarm state
-      config.sensors[sns].signalAlarm_TS = now - REPEATED_TRANSMISSION_DELAY;  // update the timestamp for released signal but enabled new transmissions
+      config.RTData[sns].signal3 = true;        //button3 must be updated
+      config.RTData[sns].signal3_val = 0;       //button3 is released
     }
 
-    if (now - config.sensors[sns].signalBattery_TS > config.sensors[sns].autoBatteryOffDelay)
+    if ((config.RTData[sns].btnCnt >= 2) && !(config.RTData[sns].OCSensor) && (now - config.RTData[sns].signal2_TS > config.sensors[sns].delay2))
     {
-      signalBattery = true;                        //set signalReleased to force a value update
-      config.sensors[sns].valueBattery = 66.0;     //set new battery level value which does not trigger a warning
-      config.sensors[sns].signalBattery_TS = now - REPEATED_TRANSMISSION_DELAY;  // update the timestamp for released signal but enabled new transmissions   
+      config.RTData[sns].signal2 = true;        //button2 must be updated
+      config.RTData[sns].signal2_val = 0;       //button2 is released
     }
 
 
+    if ((config.RTData[sns].btnCnt >= 1) && !(config.RTData[sns].OCSensor) && (now - config.RTData[sns].signal3_TS > config.sensors[sns].delay3))
+    {
+      config.RTData[sns].signal1 = true;        //button2 must be updated
+      config.RTData[sns].signal1_val = 0;       //button1 is released
+    }
 
-    if ((signalPushed || signalReleased || signalAlarm || signalBattery) && HomeeEnabled)
+    if (HomeeEnabled && (config.RTData[sns].signal1 || config.RTData[sns].signal2 || config.RTData[sns].signal3 || config.RTData[sns].signal4))
     {
       Serial.printf("[RCSWITCH] Sensor %s has changed: Pushed: %d, Released: %d, Alarm: %d, Battery: %d\n", 
                     config.sensors[sns].name.c_str(), signalPushed, signalReleased, signalAlarm, signalBattery);
@@ -672,12 +713,8 @@ void setup()
     config.sensors[0].active = true;
     config.sensors[0].name = "TestSensor";
     config.sensors[0].homeeID = 1;
-    config.sensors[0].type = "Window-Sensor";
+    config.sensors[0].type = "OneButton Remote";
     config.sensors[0].address = 0x0;
-    config.sensors[0].signalPushed = 9999;
-    config.sensors[0].signalReleased = 9999;
-    config.sensors[0].signalAlarm = 9999;
-    config.sensors[0].signalBattery = 9999;
     config.save();
   }
 

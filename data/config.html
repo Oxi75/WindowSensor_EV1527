@@ -213,6 +213,10 @@ function renderSensors(sensors) {
     
     row.innerHTML = `
       <b>Sensor ${i + 1}</b><br>
+      <label style="display: inline-flex; align-items: center;">
+        <input type="checkbox" class="active" ${s.active ? "checked" : ""}>
+        <span style="margin-left: 0.5em;">activated</span>
+      </label>
       <label>Type:
         <select class="type" onchange="updateSensorTypeVisibility(${i})">
           <option value="OpenClose" ${s.type === "OpenClose" ? "selected" : ""}>OpenClose Sensor</option>
@@ -221,10 +225,6 @@ function renderSensors(sensors) {
           <option value="ThreeButton" ${s.type === "ThreeButton" ? "selected" : ""}>ThreeButton Remote</option>
           <option value="FourButton" ${s.type === "FourButton" ? "selected" : ""}>FourButton Remote</option>
         </select>
-      </label>
-      <label style="display: inline-flex; align-items: center;">
-        <input type="checkbox" class="active" ${s.active ? "checked" : ""}>
-        <span style="margin-left: 0.5em;">activated</span>
       </label>
       <label>Name: <input type="text" class="name" value="${s.name || ""}"></label>
       <label>homee ID: <input type="number" class="homeeID" min="1" max="65535" value="${s.homeeID || ""}"></label>
