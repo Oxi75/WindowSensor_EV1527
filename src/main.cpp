@@ -116,19 +116,17 @@ struct LastSignal
     String sensorAddress;
     String sensorData;
     uint8_t bitLength;
-    uint32_t decimal;
     String binary;
     String protocol;
 };
 
-// Globale Variable mit dem letzten Signal (aktualisierst du in deinem Empfangscode)
+// Globale Variable mit dem letzten Signal
 LastSignal lastSignal = {
-    .sensorAddress = "FFFFFFF",
-    .sensorData = "0",
-    .bitLength = 24,
-    .decimal = 0,
-    .binary = "101010111100110111001101",
-    .protocol = "1"
+    .sensorAddress = "-------",
+    .sensorData = "-",
+    .bitLength = 0,
+    .binary = "------------------------",
+    .protocol = "-"
 };
 
    
@@ -384,61 +382,56 @@ void homee_updateValues(uint32_t snsNo)
 {  
 //  Serial.printf("update homee values for Sensor No %d (%s)\n", snsNo, config.sensors[snsNo].type);
 
-  // Update Sensor or Button-State
   nodeAttributes *na;
-  if (config.sensors[snsNo].type == "OpenClose-Sensor")
+  
+  if ((config.RTData[snsNo].btnCnt >= 4) && (config.RTData[snsNo].signal4))
   {
-    if (config.RTData[snsNo].signal1 || config.RTData[snsNo].signal2)  //status has changed
-    {
-      na = vhih.getAttributeById(AttrID_Sig1 | snsNo);
-
-      na->setCurrentValue(config.RTData[snsNo].signal1_val);
-      if (na) vhih.updateAttributeValue(na, na->getCurrentValue());
-      delay(200);
-      yield();       
-    }
-  }
-
-  else if (config.sensors[snsNo].type == "OneButton Remote"
-    || config.sensors[snsNo].type == "TwoButton Remote"
-    || config.sensors[snsNo].type == "ThreeButton Remote"
-    || config.sensors[snsNo].type == "FourButton Remote")
-  {
-    if (config.sensors[snsNo].signal1) //Button 1 has changed
-    {
-      na = vhih.getAttributeById(AttrID_Sig1 | snsNo);
-      na->setCurrentValue(config.RTData[snsNo].signal1_val);
-      if (na) vhih.updateAttributeValue(na, na->getCurrentValue());
-      delay(200);
-      yield();
-    }
-
-    if ((config.sensors[snsNo].signal2) && (config.sensors[snsNo].type != "OneButtonRemote")) //Button 2 has changed
-    {
-      na = vhih.getAttributeById(AttrID_Sig2 | snsNo);
-      na->setCurrentValue(config.RTData[snsNo].signal2_val);
-      if (na) vhih.updateAttributeValue(na, na->getCurrentValue());
-      delay(200);
-      yield();
-    }
-  }
-
-  if (config.sensors[snsNo].type != "OneButton Remote" && (config.sensors[snsNo].type != "TwoButton Remote") && (config.RTData[snsNo].signal3))
-  {
-    na = vhih.getAttributeById(AttrID_Sig3 | snsNo);
-    na->setCurrentValue(config.RTData[snsNo].signal3_val);
+    na = vhih.getAttributeById(AttrID_Sig4 | snsNo);
+    na->setCurrentValue(config.RTData[snsNo].signal4_val);
+    config.RTData[snsNo].signal4 = false;
     if (na) vhih.updateAttributeValue(na, na->getCurrentValue());
     delay(200);
     yield();
+  } 
 
-    if (config.sensors[snsNo].type != "ThreeButton Remote" && (config.RTData[snsNo].signal4))
-    {
-      na = vhih.getAttributeById(AttrID_Sig4 | snsNo);
-      na->setCurrentValue(config.RTData[snsNo].signal4_val);
-      if (na) vhih.updateAttributeValue(na, na->getCurrentValue());
-      delay(200);
-      yield();
-    } 
+  if ((config.RTData[snsNo].btnCnt >= 3) && (config.RTData[snsNo].signal3))
+  {
+    na = vhih.getAttributeById(AttrID_Sig3 | snsNo);
+    na->setCurrentValue(config.RTData[snsNo].signal3_val);
+    config.RTData[snsNo].signal3 = false;
+    if (na) vhih.updateAttributeValue(na, na->getCurrentValue());
+    delay(200);
+    yield();
+  } 
+
+  if ((config.RTData[snsNo].btnCnt >= 2) && (config.RTData[snsNo].OCSensor == false) && (config.RTData[snsNo].signal2))
+  {
+    na = vhih.getAttributeById(AttrID_Sig2 | snsNo);
+    na->setCurrentValue(config.RTData[snsNo].signal2_val);
+    config.RTData[snsNo].signal2 = false;
+    if (na) vhih.updateAttributeValue(na, na->getCurrentValue());
+    delay(200);
+    yield();
+  } 
+
+  if ((config.RTData[snsNo].btnCnt >= 1) && (config.RTData[snsNo].OCSensor == false) && (config.RTData[snsNo].signal1))
+  {
+    na = vhih.getAttributeById(AttrID_Sig1 | snsNo);
+    na->setCurrentValue(config.RTData[snsNo].signal1_val);
+    config.RTData[snsNo].signal1 = false;
+    if (na) vhih.updateAttributeValue(na, na->getCurrentValue());
+    delay(200);
+    yield();
+  } 
+
+  if ((config.RTData[snsNo].OCSensor) && (config.RTData[snsNo].signal1))
+  {
+    na = vhih.getAttributeById(AttrID_Sig1 | snsNo);
+    na->setCurrentValue(config.RTData[snsNo].signal1_val);
+    config.RTData[snsNo].signal1 = false;
+    if (na) vhih.updateAttributeValue(na, na->getCurrentValue());
+    delay(200);
+    yield();
   } 
 } 
 
@@ -452,7 +445,10 @@ void RCSwitch_setup()
     Serial.println("[RCSWITCH] RCSwitch setup complete.");
 }
 
-
+/// ****************************************************
+/// @brief Check for received RCSwitch signals and update sensor data accordingly.
+/// @param HomeeEnabled 
+/// ****************************************************
 void RCSwitch_check(bool HomeeEnabled)
 {
   uint32_t snsAddr = 0; // Initialisiere den Wert
@@ -481,6 +477,8 @@ void RCSwitch_check(bool HomeeEnabled)
     lastSignal.sensorAddress.toUpperCase(); // Adresse in Großbuchstaben umwandeln
 
     mySwitch.resetAvailable(); // Verfügbare Daten zurücksetzen
+
+    Serial.printf("[RCSWITCH] Received signal: Address: 0x%05x, Value: %d, Protocol: %d, Bitlength: %d, Binary: %s\n", snsAddr, snsValue, protocol, lastSignal.bitLength, lastSignal.binary.c_str());
   }
 
   for (uint32_t sns = 0; sns < MAX_SENSORS; sns++)  // Durchlaufe alle konfigurierten Sensoren bis Sensor gefunden oder alle Sensoren geprüft wurden
@@ -494,63 +492,38 @@ void RCSwitch_check(bool HomeeEnabled)
     }
 
     uint32_t now = millis();
-    bool signalPushed  = false;       //"closed" changed
-    bool signalReleased    = false;   //"open" changed
-    bool signalAlarm   = false;       //"alarm" changed
-    bool signalBattery = false;       // "battery" changed
-
-    double stateValue = 0; //Value for the state attribute
-    double alarmValue = 0; //Value for the alarm attribute
-    double batteryValue = 0; //Value for the battery attribute    
-
 
     if (config.sensors[sns].address == snsAddr) // Überprüfen, ob die Adresse übereinstimmt 
     {
       // Sensor gefunden
       Serial.printf("Sensor %s has send value %d\n", config.sensors[sns].name.c_str(), snsValue); // Debug-Ausgabe der Adresse und des Wertes
 
-      config.RTData[sns].signal1 = config.sensors[sns].signal1 == snsValue; // Signal1 was set
-      config.RTData[sns].signal2 = config.sensors[sns].signal2 == snsValue; // Signal2 was set
-      config.RTData[sns].signal3 = config.sensors[sns].signal3 == snsValue; // Signal3 was set  
-      config.RTData[sns].signal4 = config.sensors[sns].signal4 == snsValue; // Signal4 was set
-
-      //Zeitstempel aktualisieren, wenn das Signal geändert wurde
-      if (config.RTData[sns].signal1)
-      {        
-        if ((now - config.RTData[sns].signal1_TS) < REPEATED_TRANSMISSION_DELAY)  //repeated transmissions must be surpressed
-        {
-          config.RTData[sns].signal1 = false;   // igrnore the signal if it is repeated too fast
-        }
+      if (snsValue == config.sensors[sns].signal1)
+      {
+        if ((now - config.RTData[sns].signal1_TS) > REPEATED_TRANSMISSION_DELAY) config.RTData[sns].signal1 = true; // Signal1 is only set if the delay is longer than REPEATED_TRANSMISSION_DELAY
         config.RTData[sns].signal1_TS = now;    //update timestamp for signal1
-      }
-      else if (config.RTData[sns].signal2)
-      {        
-        if ((now - config.RTData[sns].signal2_TS) < REPEATED_TRANSMISSION_DELAY)  //repeated transmissions must be surpressed
-        {
-          config.RTData[sns].signal2 = false;   // igrnore the signal if it is repeated too fast
-        }
+      } 
+
+      if (snsValue == config.sensors[sns].signal2)
+      {
+        if ((now - config.RTData[sns].signal2_TS) > REPEATED_TRANSMISSION_DELAY) config.RTData[sns].signal2 = true; // Signal2 is only set if the delay is longer than REPEATED_TRANSMISSION_DELAY
         config.RTData[sns].signal2_TS = now;    //update timestamp for signal2
-      }
-      else if (config.RTData[sns].signal3)
-      {        
-        if ((now - config.RTData[sns].signal3_TS) < REPEATED_TRANSMISSION_DELAY)  //repeated transmissions must be surpressed
-        {
-          config.RTData[sns].signal3 = false;   // igrnore the signal if it is repeated too fast
-        }
+      } 
+
+      if (snsValue == config.sensors[sns].signal3)
+      {
+        if ((now - config.RTData[sns].signal3_TS) > REPEATED_TRANSMISSION_DELAY) config.RTData[sns].signal3 = true; // Signal3 is only set if the delay is longer than REPEATED_TRANSMISSION_DELAY
         config.RTData[sns].signal3_TS = now;    //update timestamp for signal3
       }
-      else if (config.RTData[sns].signal4)
-      {        
-        if ((now - config.RTData[sns].signal4_TS) < REPEATED_TRANSMISSION_DELAY)  //repeated transmissions must be surpressed
-        {
-          config.RTData[sns].signal4 = false;   // igrnore the signal if it is repeated too fast
-        }
+
+      if (snsValue == config.sensors[sns].signal4)
+      {
+        if ((now - config.RTData[sns].signal4_TS) > REPEATED_TRANSMISSION_DELAY) config.RTData[sns].signal4 = true; // Signal4 is only set if the delay is longer than REPEATED_TRANSMISSION_DELAY
         config.RTData[sns].signal4_TS = now;    //update timestamp for signal4
       }
     }
 
-
-    // even if address does not match, the auto-release-feature might require to update the sensor state in homee   
+    // even if address does not match to the current transmission, the auto-release-feature might require to update the sensor state in homee   
     if ((config.RTData[sns].btnCnt >= 4) && (now - config.RTData[sns].signal4_TS > config.sensors[sns].delay4))
     {
       config.RTData[sns].signal4 = true;            //signal4 must be updated
@@ -577,114 +550,17 @@ void RCSwitch_check(bool HomeeEnabled)
       config.RTData[sns].signal1_val = 0;       //button1 is released
     }
 
-    if (HomeeEnabled && (config.RTData[sns].signal1 || config.RTData[sns].signal2 || config.RTData[sns].signal3 || config.RTData[sns].signal4))
+    if ((config.RTData[sns].signal1 || config.RTData[sns].signal2 || config.RTData[sns].signal3 || config.RTData[sns].signal4))
     {
-      Serial.printf("[RCSWITCH] Sensor %s has changed: Pushed: %d, Released: %d, Alarm: %d, Battery: %d\n", 
-                    config.sensors[sns].name.c_str(), signalPushed, signalReleased, signalAlarm, signalBattery);
-        homee_updateValues(sns);
+      Serial.printf("Sensor %s has changed: %d | %d | %d | %d\n", config.sensors[sns].name.c_str(), config.RTData[sns].signal1_val,
+                     config.RTData[sns].signal2_val, config.RTData[sns].signal3_val, config.RTData[sns].signal4_val);
+      if (HomeeEnabled) homee_updateValues(sns);
     }
-  }
+  } 
 
 }
 
 
-/*
-bool RCSwitch_check(bool HomeeEnabled)
-{
-  static uint32_t lastValue = 0; // Letzter empfangener Wert
-  static uint32_t lastValueTime = 0; // Zeitstempel des letzten empfangenen Werts
-
-  uint32_t currentTime = millis();
-
-  if (!mySwitch.available()) return false; // Keine Daten verfügbar
-
-  
-  unsigned long value = mySwitch.getReceivedValue();    
-  unsigned long protocol = mySwitch.getReceivedProtocol(); // Protokoll des empfangenen Signals
-  mySwitch.resetAvailable(); // Verfügbare Daten zurücksetzen
-
-  if (value == 0) return false; // Kein gültiger Wert empfangen
-
-  if (value == lastValue && (currentTime - lastValueTime) < 500)
-  {
-    lastValueTime = currentTime; // Zeitstempel aktualisieren, wenn der Wert gleich bleibt
-    return false;                // Wert ist gleich dem letzten, also ignorieren
-  }
-
-  lastSignal.sensorAddress = String(value >> 4, HEX); // Adresse aus den oberen 20 Bit extrahieren
-  lastSignal.sensorAddress.toUpperCase(); // Adresse in Großbuchstaben umwandeln
-  // Setze die restlichen Felder des lastSignal-Objekts
-  lastSignal.sensorData = String(value & 0x000F, DEC); // Extrahiere die unteren 4 Bit für den Signalwert
-//  lastSignal.bitLength = mySwitch.getReceivedBitlength();
-  lastSignal.decimal = value;
-  lastSignal.binary = String(value, BIN);
-  lastSignal.protocol = String(protocol);
-  Serial.printf("[RCSWITCH] Received value: %05x, Bitlength: %d, Binary: %s, Protocol: %s\n", 
-                lastSignal.decimal, lastSignal.bitLength, lastSignal.binary.c_str(), lastSignal.protocol.c_str());  
-
-
-  lastValue = value;           // Neuen Wert speichern
-  lastValueTime = currentTime; // Zeitstempel aktualisieren
-
-  bool sensorFound = false;
-
-  //Daten auswerten um dem Sensor zuzuordnen
-  for (uint32_t sns = 0; sns < MAX_SENSORS; sns++)  // Durchlaufe alle konfigurierten Sensoren bis Sensor gefunden oder alle Sensoren geprüft wurden
-  {
-    if ((config.sensors[sns].name == "") || (!config.sensors[sns].active) || (config.sensors[sns].homeeID == 0))
-    {
-      //Serial.printf("[CONFIG] Sensor %d is not active or has no name or invalid homeeID -> skipping.\n", sns);      
-      continue;
-    }
-
-    if (config.sensors[sns].type == "Window-Sensor")
-    {
-      uint32_t addr = (value >> 4) & 0xFFFFF; // Adresse aus den oberen 20 Bit extrahieren
-
-      if (addr == config.sensors[sns].address) // Überprüfen, ob die Adresse übereinstimmt
-      {
-        sensorFound = true; // Sensor gefunden
-        Serial.printf("Sensor %s has send value %d\n", String(addr), value & 0x000F); // Ausgabe der Adresse und des Wertes
-        if (!HomeeEnabled) break; // Wenn Homee nicht aktiviert ist, breche die Schleife ab
-
-        if ((value & 0x000F) == config.sensors[sns].signalOn)      homee_updateValues(sns, SensorSignalOpen);  // Sensor ist offen
-        if ((value & 0x000F) == config.sensors[sns].signalOff)     homee_updateValues(sns, SensorSignalClosed);  // Sensor ist geschlossen
-        if ((value & 0x000F) == config.sensors[sns].signalAlarm)   homee_updateValues(sns, SensorSignalAlarm);  // Sensor hat Alarm ausgelöst
-        if ((value & 0x000F) == config.sensors[sns].signalBattery) homee_updateValues(sns, SensorSignalBattery);  // Sensor hat Batteriewarnung ausgelöst
-        break; // Sensor gefunden -> For-Schleife beenden
-      }
-
-      // Wenn die Adresse nicht übereinstimmt mit nächstem Schleifendurchlauf fortfahren
-      continue;
-    }
-
-    if (config.sensors[sns].type == "Button")
-    {
-      if (value == config.sensors[sns].address) // Überprüfen, ob die Adresse übereinstimmt
-      {
-        sensorFound = true; // Sensor gefunden
-        Serial.printf("Button %d was pushed\n", value); // Ausgabe der Adresse und des Wertes
-        if (HomeeEnabled) homee_updateValues(sns, 0);
-        break; // Sensor gefunden -> For-Schleife beenden
-      }
-
-      // Wenn die Adresse nicht übereinstimmt mit nächstem Schleifendurchlauf fortfahren
-      continue;
-    }
-
-    //unknown sensor type
-    Serial.printf("RCSwitch_check() - Sensor %d, configured type (%s) is unknown. Check configuration or program code\n", sns, config.sensors[sns].type.c_str()); 
-  } // Ende der For-Schleife
-
-  if (!sensorFound)
-  {
-    Serial.printf("Transmission from unknown sensor received. Received value is %05x\n", value);      
-  }
-
-
-  return sensorFound;
-}
-*/
 
 void setup() 
 {
@@ -741,13 +617,13 @@ server.on("/config", HTTP_GET, [](AsyncWebServerRequest* req) {
     s["homeeID"] = config.sensors[i].homeeID;
     s["type"] = config.sensors[i].type;
     s["address"] = String(config.sensors[i].address, HEX);
-    s["signalOn"] = config.sensors[i].signalPushed;
-    s["signalOff"] = config.sensors[i].signalReleased;
-    s["signalAlarm"] = config.sensors[i].signalAlarm;
-    s["signalBattery"] = config.sensors[i].signalBattery;
-    s["autoOffDelay"] = config.sensors[i].autoReleaseDelay;
-    s["signalAlarmOffDelay"] = config.sensors[i].autoAlarmOffDelay;
-    s["signalBatteryOffDelay"] = config.sensors[i].autoBatteryOffDelay;
+    s["signal1"] = config.sensors[i].signal1;
+    s["signal2"] = config.sensors[i].signal2;
+    s["signal3"] = config.sensors[i].signal3;
+    s["signal4"] = config.sensors[i].signal4;
+    s["autoOffDelay"] = config.sensors[i].delay1;
+    s["signalAlarmOffDelay"] = config.sensors[i].delay3;
+    s["signalBatteryOffDelay"] = config.sensors[i].delay4;
   }
 
   String out;
@@ -833,13 +709,14 @@ server.on("/config", HTTP_GET, [](AsyncWebServerRequest* req) {
     const char* addrStr = s["address"].as<const char*>();
     sens.address = addrStr ? strtoul(addrStr, NULL, 16) : 0;
 
-    sens.signalPushed = s["signalOn"] | 0;
-    sens.signalReleased = s["signalOff"] | 0;
-    sens.signalAlarm = s["signalAlarm"] | 0;
-    sens.signalBattery = s["signalBattery"] | 0;
-    sens.autoReleaseDelay = s["autoOffDelay"] | 0;
-    sens.autoAlarmOffDelay = s["signalAlarmOffDelay"] | 0;
-    sens.autoBatteryOffDelay = s["signalBatteryOffDelay"] | 0;
+    sens.signal1 = s["signal1"] | 0;
+    sens.signal2 = s["signal2"] | 0;
+    sens.signal3 = s["signal3"] | 0;
+    sens.signal4 = s["signal4"] | 0;
+    sens.delay1 = s["delay1"] | 0;
+    sens.delay2 = s["delay2"] | 0;
+    sens.delay3 = s["delay3"] | 0;
+    sens.delay4 = s["delay4"] | 0;
     sens.active = true;
   }
 
@@ -896,7 +773,6 @@ server.on("/config", HTTP_GET, [](AsyncWebServerRequest* req) {
       doc["sensorAddress"] = lastSignal.sensorAddress;
       doc["sensorData"]    = lastSignal.sensorData;
       doc["bitLength"]     = lastSignal.bitLength;
-      doc["decimal"]       = lastSignal.decimal;
       doc["binary"]        = lastSignal.binary;
       doc["protocol"]      = lastSignal.protocol;
 
@@ -915,35 +791,18 @@ server.on("/config", HTTP_GET, [](AsyncWebServerRequest* req) {
   ledOff(); // LED ausschalten, wenn Setup abgeschlossen ist
 }
 
-static bool attrChanged = false;
-static uint32_t attrSensorNo = 0;
-static uint32_t attrStatus = 0;
-static uint32_t attrAlarm = 0;
-static uint32_t attrBattery = 0;
 
 
 void loop()
 {
-    static bool firstCall = true;
-    if (firstCall)
-    {
-      Serial.println("Enter control loop for the first time.");
-      firstCall = false;
-    }
+  static bool firstCall = true;
+  if (firstCall)
+  {
+    Serial.println("Enter control loop for the first time.");
+    firstCall = false;
+  }
 
-      if (!isAPMode) WiFi_check();
-      RCSwitch_check(!isAPMode);
-      yield();  //delay is not allowed here, because homee connection would become unstable
-
-return;      
-    if (isAPMode)
-    {
-
-    }
-    else
-    {
-      WiFi_check();
-      RCSwitch_check(!isAPMode);
-      yield();  //delay is not allowed here, because homee connection would become unstable
-    }
+  if (!isAPMode) WiFi_check();
+  RCSwitch_check(!isAPMode);
+  yield();  //delay is not allowed here, because homee connection would become unstable
 }
