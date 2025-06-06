@@ -29,7 +29,7 @@
 #define PIN_LED      GPIO_NUM_2            // GPIO pin for the LED
 #define PIN_RECEIVER GPIO_NUM_15
 
-const double FW_VERSION = 0.07;
+const double FW_VERSION = 0.08;
 String FW_VERSION_STR = String(FW_VERSION, 2);
 
 #define CANodeProfileOneButtonRemote 20
@@ -229,10 +229,16 @@ void homee_setup()
   {
     if ((config.sensors[sns].name == "") || (!config.sensors[sns].active) || (config.sensors[sns].homeeID == 0))
     {
-      Serial.printf("[CONFIG] Sensor %d is not active or has no name or invalid homeeID -> skipping.\n", sns);      
+      Serial.printf("[HOMEE] Sensor %d is not active or has no name or invalid homeeID -> skipping.\n", sns);      
       continue;
     }
 
+    if ((config.RTData[sns].btnCnt > 4) || (config.RTData[sns].btnCnt < 1))
+    {
+      Serial.printf("[HOMEE] Sensor %d has invalid button count %d or an invalid type '%s' -> skipping.\n", sns, config.RTData[sns].btnCnt, config.sensors[sns].type.c_str());
+      continue;
+    }
+/*
     if ((config.sensors[sns].type != "OpenClose Sensor") 
      && (config.sensors[sns].type != "OneButton Remote") && (config.sensors[sns].type != "TwoButton Remote")
      && (config.sensors[sns].type != "ThreeButton Remote") && (config.sensors[sns].type != "FourButton Remote"))
@@ -240,8 +246,9 @@ void homee_setup()
       Serial.printf("[CONFIG] Sensor %d has an invalid type '%s' -> skipping.\n", sns, config.sensors[sns].type.c_str());
       continue;
     }
+*/
 
-    Serial.printf("setup sensor %s with address 0x%05x as %s at homee device with ID %d\n", config.sensors[sns].name.c_str(), config.sensors[sns].address, config.sensors[sns].type.c_str(), config.sensors[sns].homeeID);
+    Serial.printf("[HOMEE] setup sensor %s with address 0x%05x as %s at homee device with ID %d\n", config.sensors[sns].name.c_str(), config.sensors[sns].address, config.sensors[sns].type.c_str(), config.sensors[sns].homeeID);
 
     //all checks done, now new add the new sensor with all its attributes to homee    
     node *n;
@@ -256,7 +263,7 @@ void homee_setup()
     na->setEditable(false);
     na->setCallback(nullptr);
 
-    if (config.sensors[sns].type == "OpenClose Sensor")
+    if (config.RTData[sns].OCSensor)
     {
       n = new node(config.sensors[sns].homeeID, CANodeProfileOpenCloseSensor, config.sensors[sns].name);     
       n->AddAttributes(na);       //set attribute Firmware to node
@@ -299,10 +306,10 @@ void homee_setup()
     else  //must be an x-button remote
     {
       uint32_t vhihProfile = 0;
-      if (config.sensors[sns].type == "OneButton Remote")  vhihProfile = CANodeProfileOneButtonRemote;
-      else if (config.sensors[sns].type == "TwoButton Remote") vhihProfile = CANodeProfileTwoButtonRemote;
-      else if (config.sensors[sns].type == "ThreeButton Remote") vhihProfile = CANodeProfileThreeButtonRemote;
-      else if (config.sensors[sns].type == "FourButton Remote") vhihProfile = CANodeProfileFourButtonRemote;
+      if (config.RTData[sns].btnCnt == 1)  vhihProfile = CANodeProfileOneButtonRemote;
+      else if (config.RTData[sns].btnCnt == 2) vhihProfile = CANodeProfileTwoButtonRemote;
+      else if (config.RTData[sns].btnCnt == 3) vhihProfile = CANodeProfileThreeButtonRemote;
+      else if (config.RTData[sns].btnCnt == 4) vhihProfile = CANodeProfileFourButtonRemote;
 
       n = new node(config.sensors[sns].homeeID, vhihProfile, config.sensors[sns].name);
       n->AddAttributes(na);       //set attribute Firmware to node
@@ -319,7 +326,7 @@ void homee_setup()
       na->setEditable(false);
       n->AddAttributes(na);       //set attribute to node
 
-      if (config.sensors[sns].type != "OneButton Remote")
+      if (config.RTData[sns].btnCnt >= 2)
       {
         //Attribut Status Button2
         na = new nodeAttributes(CAAttributeTypeButtonState);  //open / closed state
@@ -331,38 +338,38 @@ void homee_setup()
         na->setCallback(nullptr);
         na->setEditable(false);
         n->AddAttributes(na);       //set attribute to node
+      }
 
 
-        if (config.sensors[sns].type != "TwoButton Remote")
-        {
-          //Attribut Status Button3
-          na = new nodeAttributes(CAAttributeTypeButtonState);  //open / closed state
-          na->setName("Status Button3");
-          na->setId(AttrID_Sig3 | sns); //unique ID for each sensor        
-          na->setMinimumValue(0);
-          na->setMaximumValue(1); 
-          na->setCurrentValue(0);
-          na->setCallback(nullptr);
-          na->setEditable(false);
-          n->AddAttributes(na);       //set attribute to node
+      if (config.RTData[sns].btnCnt >= 3)
+      {
+        //Attribut Status Button3
+        na = new nodeAttributes(CAAttributeTypeButtonState);  //open / closed state
+        na->setName("Status Button3");
+        na->setId(AttrID_Sig3 | sns); //unique ID for each sensor        
+        na->setMinimumValue(0);
+        na->setMaximumValue(1); 
+        na->setCurrentValue(0);
+        na->setCallback(nullptr);
+        na->setEditable(false);
+        n->AddAttributes(na);       //set attribute to node
+      }
 
-          if (config.sensors[sns].type != "ThreeButton Remote")
-          {
-            //Attribut Status Button4
-            na = new nodeAttributes(CAAttributeTypeButtonState);  //open / closed state
-            na->setName("Status Button4");
-            na->setId(AttrID_Sig4 | sns); //unique ID for each sensor        
-            na->setMinimumValue(0);
-            na->setMaximumValue(1); 
-            na->setCurrentValue(0);
-            na->setCallback(nullptr);
-            na->setEditable(false);
-            n->AddAttributes(na);       //set attribute to node
-          }
-        }
+      if (config.RTData[sns].btnCnt == 4)
+      {
+        //Attribut Status Button4
+        na = new nodeAttributes(CAAttributeTypeButtonState);  //open / closed state
+        na->setName("Status Button4");
+        na->setId(AttrID_Sig4 | sns); //unique ID for each sensor        
+        na->setMinimumValue(0);
+        na->setMaximumValue(1); 
+        na->setCurrentValue(0);
+        na->setCallback(nullptr);
+        na->setEditable(false);
+        n->AddAttributes(na);       //set attribute to node
       }
     }
-    
+
     vhih.addNode(n); //add the new node to homee
   }
 
@@ -546,27 +553,27 @@ void RCSwitch_check(bool HomeeEnabled)
     }
 
     // even if address does not match to the current transmission, the auto-release-feature might require to update the sensor state in homee   
-    if ((config.RTData[sns].btnCnt >= 4) && (now - config.RTData[sns].signal4_TS > config.sensors[sns].delay4) && (config.RTData[sns].signal4_val != 0))
+    if ((config.RTData[sns].btnCnt >= 4) && (config.sensors[sns].delay4 > 0.2) && (now - config.RTData[sns].signal4_TS > (config.sensors[sns].delay4 * 1000)) && (config.RTData[sns].signal4_val != 0))
     {
       config.RTData[sns].signal4 = true;            //signal4 must be updated
       if (config.RTData[sns].OCSensor) config.RTData[sns].signal4_val = 66.0;        //set new battery level value which does not trigger a warning
       else config.RTData[sns].signal4_val = 0;       //button 4 is released
     }
 
-    if ((config.RTData[sns].btnCnt >= 3) && (now - config.RTData[sns].signal3_TS > config.sensors[sns].delay3) && (config.RTData[sns].signal3_val != 0))
+    if ((config.RTData[sns].btnCnt >= 3) && (config.sensors[sns].delay3 > 0.2) && (now - config.RTData[sns].signal3_TS > (config.sensors[sns].delay3 * 1000)) && (config.RTData[sns].signal3_val != 0))
     {
       config.RTData[sns].signal3 = true;        //button3 must be updated
       config.RTData[sns].signal3_val = 0;       //button3 is released
     }
 
-    if ((config.RTData[sns].btnCnt >= 2) && !(config.RTData[sns].OCSensor) && (now - config.RTData[sns].signal2_TS > config.sensors[sns].delay2) && (config.RTData[sns].signal2_val != 0))
+    if ((config.RTData[sns].btnCnt >= 2) && !(config.RTData[sns].OCSensor) && (config.sensors[sns].delay2 > 0.2) && (now - config.RTData[sns].signal2_TS > (config.sensors[sns].delay2 * 1000)) && (config.RTData[sns].signal2_val != 0))
     {
       config.RTData[sns].signal2 = true;        //button2 must be updated
       config.RTData[sns].signal2_val = 0;       //button2 is released
     }
 
 
-    if ((config.RTData[sns].btnCnt >= 1) && !(config.RTData[sns].OCSensor) && (now - config.RTData[sns].signal1_TS > config.sensors[sns].delay1) && (config.RTData[sns].signal1_val != 0))
+    if ((config.RTData[sns].btnCnt >= 1) && !(config.RTData[sns].OCSensor) && (config.sensors[sns].delay1 > 0.2) && (now - config.RTData[sns].signal1_TS > (config.sensors[sns].delay1 * 1000)) && (config.RTData[sns].signal1_val != 0))
     {
       config.RTData[sns].signal1 = true;        //button2 must be updated
       config.RTData[sns].signal1_val = 0;       //button1 is released

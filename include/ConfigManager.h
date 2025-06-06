@@ -87,10 +87,10 @@ struct SensorRuntimeData
   double signal3_val = 0.0; // Alarm/Button3 value
   double signal4_val = 0.0; // Battery/Button4 value
 
-  bool signal1_TS = 0;      // Timestamp of last signal1
-  bool signal2_TS = 0;      // Timestamp of last signal2 
-  bool signal3_TS = 0;      // Timestamp of last signal3
-  bool signal4_TS = 0;      // Timestamp of last signal4
+  double signal1_TS = 0;      // Timestamp of last signal1
+  double signal2_TS = 0;      // Timestamp of last signal2 
+  double signal3_TS = 0;      // Timestamp of last signal3
+  double signal4_TS = 0;      // Timestamp of last signal4
 };
 
 
