@@ -359,12 +359,12 @@ function emptySensor() {
     active: true,
     name: "",
     homeeID: 0,
-    type: "OpenClose Sensor", // FIXED: Use backend-expected type name
+    type: "OpenClose Sensor",
     address: 0,
-    signal1: 0,
-    signal2: 0,
-    signal3: 0,
-    signal4: 0,
+    signal1: 0,  // FIXED: Change from -1 to 0
+    signal2: 0,  // FIXED: Change from -1 to 0
+    signal3: 0,  // FIXED: Change from -1 to 0
+    signal4: 0,  // FIXED: Change from -1 to 0
     delay1: null,
     delay2: null,
     delay3: null,
@@ -378,28 +378,68 @@ function collectSensors() {
     const frontendType = s.querySelector(".type").value;
     const backendType = sensorTypeConfigs[frontendType]?.backendType || "OpenClose Sensor";
     
+    // Get address as hex number (not string)
+    const addressStr = s.querySelector(".address").value.trim();
+    const addressValue = addressStr ? parseInt(addressStr, 16) : 0;
+    
     const sensorData = {
       active: s.querySelector(".active").checked,
       name: s.querySelector(".name").value.trim(),
       homeeID: parseInt(s.querySelector(".homeeID").value) || 0,
-      type: backendType, // FIXED: Use backend-expected type name
-      address: parseInt(s.querySelector(".address").value, 16) || 0,
-      signal1: parseInt(s.querySelector(".signal1").value) || 0,
-      signal2: parseInt(s.querySelector(".signal2").value) || 0,
-      signal3: parseInt(s.querySelector(".signal3").value) || 0,
-      signal4: parseInt(s.querySelector(".signal4").value) || 0
+      type: backendType,
+      address: addressValue,
+      signal1: 0,
+      signal2: 0,
+      signal3: 0,
+      signal4: 0,
+      delay1: null,
+      delay2: null,
+      delay3: null,
+      delay4: null
     };
     
-    // FIXED: Better delay handling - convert empty strings to null
-    const delay1 = s.querySelector(".delay1").value;
-    const delay2 = s.querySelector(".delay2").value;
-    const delay3 = s.querySelector(".delay3").value;
-    const delay4 = s.querySelector(".delay4").value;
+    // FIXED: Only read from the visible signal group
+    const visibleGroup = s.querySelector(`.signal-type-group[data-type="${frontendType}"]:not(.hidden)`);
+    if (visibleGroup) {
+      // Read signal values from visible group only
+      const signal1Input = visibleGroup.querySelector(".signal1");
+      const signal2Input = visibleGroup.querySelector(".signal2");
+      const signal3Input = visibleGroup.querySelector(".signal3");
+      const signal4Input = visibleGroup.querySelector(".signal4");
+      
+      if (signal1Input) sensorData.signal1 = parseInt(signal1Input.value) || 0;
+      if (signal2Input) sensorData.signal2 = parseInt(signal2Input.value) || 0;
+      if (signal3Input) sensorData.signal3 = parseInt(signal3Input.value) || 0;
+      if (signal4Input) sensorData.signal4 = parseInt(signal4Input.value) || 0;
+      
+      // Read delay values from visible group only
+      const delay1Input = visibleGroup.querySelector(".delay1");
+      const delay2Input = visibleGroup.querySelector(".delay2");
+      const delay3Input = visibleGroup.querySelector(".delay3");
+      const delay4Input = visibleGroup.querySelector(".delay4");
+      
+      if (delay1Input) {
+        const delay1 = delay1Input.value.trim();
+        sensorData.delay1 = (delay1 === "" || delay1 === "NaN") ? null : parseFloat(delay1);
+      }
+      if (delay2Input) {
+        const delay2 = delay2Input.value.trim();
+        sensorData.delay2 = (delay2 === "" || delay2 === "NaN") ? null : parseFloat(delay2);
+      }
+      if (delay3Input) {
+        const delay3 = delay3Input.value.trim();
+        sensorData.delay3 = (delay3 === "" || delay3 === "NaN") ? null : parseFloat(delay3);
+      }
+      if (delay4Input) {
+        const delay4 = delay4Input.value.trim();
+        sensorData.delay4 = (delay4 === "" || delay4 === "NaN") ? null : parseFloat(delay4);
+      }
+    } else {
+      console.warn(`No visible signal group found for sensor type: ${frontendType}`);
+    }
     
-    sensorData.delay1 = (delay1 === "" || delay1 === "NaN") ? null : parseFloat(delay1);
-    sensorData.delay2 = (delay2 === "" || delay2 === "NaN") ? null : parseFloat(delay2);
-    sensorData.delay3 = (delay3 === "" || delay3 === "NaN") ? null : parseFloat(delay3);
-    sensorData.delay4 = (delay4 === "" || delay4 === "NaN") ? null : parseFloat(delay4);
+    // Debug output
+    console.log(`Sensor ${sensors.length + 1}:`, sensorData);
     
     sensors.push(sensorData);
   });

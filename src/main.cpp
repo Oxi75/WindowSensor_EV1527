@@ -29,7 +29,7 @@
 #define PIN_LED      GPIO_NUM_2            // GPIO pin for the LED
 #define PIN_RECEIVER GPIO_NUM_15
 
-const double FW_VERSION = 0.05;
+const double FW_VERSION = 0.07;
 String FW_VERSION_STR = String(FW_VERSION, 2);
 
 #define CANodeProfileOneButtonRemote 20
@@ -496,61 +496,86 @@ void RCSwitch_check(bool HomeeEnabled)
 
       if (snsValue == config.sensors[sns].signal1)
       {
-        if ((now - config.RTData[sns].signal1_TS) > REPEATED_TRANSMISSION_DELAY) config.RTData[sns].signal1 = true; // Signal1 is only set if the delay is longer than REPEATED_TRANSMISSION_DELAY
+        if ((now - config.RTData[sns].signal1_TS) > REPEATED_TRANSMISSION_DELAY)
+        {
+          config.RTData[sns].signal1_val = 1.0; //switch to on / pressed / high state
+          config.RTData[sns].signal1 = true;    //signalizes that signal1 hast been changed
+        }
+
         config.RTData[sns].signal1_TS = now;    //update timestamp for signal1
       } 
 
       if (snsValue == config.sensors[sns].signal2)
       {
-        if ((now - config.RTData[sns].signal2_TS) > REPEATED_TRANSMISSION_DELAY) config.RTData[sns].signal2 = true; // Signal2 is only set if the delay is longer than REPEATED_TRANSMISSION_DELAY
+        if ((now - config.RTData[sns].signal2_TS) > REPEATED_TRANSMISSION_DELAY)
+        {
+          if (!config.RTData[sns].OCSensor) 
+          {
+            config.RTData[sns].signal2_val = 1.0;  //switch to on / pressed / high state
+            config.RTData[sns].signal2 = true;     // signalizes that signal2 hast been changed
+          }
+          else
+          {
+            config.RTData[sns].signal1_val = 0;  // switch signal1 back to off / released / low state
+            config.RTData[sns].signal1 = true;   // signalizes that signal1 hast been changed
+          }
+        }
         config.RTData[sns].signal2_TS = now;    //update timestamp for signal2
       } 
 
       if (snsValue == config.sensors[sns].signal3)
       {
-        if ((now - config.RTData[sns].signal3_TS) > REPEATED_TRANSMISSION_DELAY) config.RTData[sns].signal3 = true; // Signal3 is only set if the delay is longer than REPEATED_TRANSMISSION_DELAY
+        if ((now - config.RTData[sns].signal3_TS) > REPEATED_TRANSMISSION_DELAY)
+        {
+          config.RTData[sns].signal3_val = 1.0; //switch to on / pressed / high state
+          config.RTData[sns].signal3 = true;    // signalizes that signal3 hast been changed
+        }
         config.RTData[sns].signal3_TS = now;    //update timestamp for signal3
       }
 
       if (snsValue == config.sensors[sns].signal4)
       {
-        if ((now - config.RTData[sns].signal4_TS) > REPEATED_TRANSMISSION_DELAY) config.RTData[sns].signal4 = true; // Signal4 is only set if the delay is longer than REPEATED_TRANSMISSION_DELAY
+        if ((now - config.RTData[sns].signal4_TS) > REPEATED_TRANSMISSION_DELAY)
+        {
+          if (config.RTData[sns].OCSensor) config.RTData[sns].signal4_val = 10; // signalizes a low battery state
+          else config.RTData[sns].signal4_val = 1.0;                            // switch to on / pressed / high state
+          config.RTData[sns].signal4 = true;                                    // signalizes that signal4 hast been changed
+        }
         config.RTData[sns].signal4_TS = now;    //update timestamp for signal4
       }
     }
 
     // even if address does not match to the current transmission, the auto-release-feature might require to update the sensor state in homee   
-    if ((config.RTData[sns].btnCnt >= 4) && (now - config.RTData[sns].signal4_TS > config.sensors[sns].delay4))
+    if ((config.RTData[sns].btnCnt >= 4) && (now - config.RTData[sns].signal4_TS > config.sensors[sns].delay4) && (config.RTData[sns].signal4_val != 0))
     {
       config.RTData[sns].signal4 = true;            //signal4 must be updated
       if (config.RTData[sns].OCSensor) config.RTData[sns].signal4_val = 66.0;        //set new battery level value which does not trigger a warning
       else config.RTData[sns].signal4_val = 0;       //button 4 is released
     }
 
-    if ((config.RTData[sns].btnCnt >= 3) && (now - config.RTData[sns].signal3_TS > config.sensors[sns].delay3))
+    if ((config.RTData[sns].btnCnt >= 3) && (now - config.RTData[sns].signal3_TS > config.sensors[sns].delay3) && (config.RTData[sns].signal3_val != 0))
     {
       config.RTData[sns].signal3 = true;        //button3 must be updated
       config.RTData[sns].signal3_val = 0;       //button3 is released
     }
 
-    if ((config.RTData[sns].btnCnt >= 2) && !(config.RTData[sns].OCSensor) && (now - config.RTData[sns].signal2_TS > config.sensors[sns].delay2))
+    if ((config.RTData[sns].btnCnt >= 2) && !(config.RTData[sns].OCSensor) && (now - config.RTData[sns].signal2_TS > config.sensors[sns].delay2) && (config.RTData[sns].signal2_val != 0))
     {
       config.RTData[sns].signal2 = true;        //button2 must be updated
       config.RTData[sns].signal2_val = 0;       //button2 is released
     }
 
 
-    if ((config.RTData[sns].btnCnt >= 1) && !(config.RTData[sns].OCSensor) && (now - config.RTData[sns].signal3_TS > config.sensors[sns].delay3))
+    if ((config.RTData[sns].btnCnt >= 1) && !(config.RTData[sns].OCSensor) && (now - config.RTData[sns].signal1_TS > config.sensors[sns].delay1) && (config.RTData[sns].signal1_val != 0))
     {
       config.RTData[sns].signal1 = true;        //button2 must be updated
       config.RTData[sns].signal1_val = 0;       //button1 is released
     }
 
-    if ((config.RTData[sns].signal1 || config.RTData[sns].signal2 || config.RTData[sns].signal3 || config.RTData[sns].signal4))
+    if (HomeeEnabled && (config.RTData[sns].signal1 || config.RTData[sns].signal2 || config.RTData[sns].signal3 || config.RTData[sns].signal4))
     {
       Serial.printf("Sensor %s has changed: %d | %d | %d | %d\n", config.sensors[sns].name.c_str(), config.RTData[sns].signal1_val,
                      config.RTData[sns].signal2_val, config.RTData[sns].signal3_val, config.RTData[sns].signal4_val);
-      if (HomeeEnabled) homee_updateValues(sns);
     }
   } 
 
@@ -633,35 +658,40 @@ server.on("/config", HTTP_GET, [](AsyncWebServerRequest* req) {
     req->send(LittleFS, CONFIG_FILE, "application/json");
   });
 
-  server.on("/config.json", HTTP_PUT, [](AsyncWebServerRequest* req) {}, NULL,
-  [](AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t, size_t) {
-    File f = LittleFS.open(CONFIG_FILE, "w");
-    if (!f) {
-      Serial.println("[UPLOAD] Failed to open for writing.");
-      req->send(500, "text/plain", "Failed to open file.");
-      return;
-    }
-    f.write(data, len);
-    f.close();
-    config.load();
-    Serial.println("[UPLOAD] config.json uploaded and reloaded.");
-    req->send(200, "text/plain", "OK");
-  });
-
-  server.on("/config", HTTP_POST, [](AsyncWebServerRequest* req) {}, NULL,
+server.on("/config", HTTP_POST, [](AsyncWebServerRequest* req) {}, NULL,
 [](AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t, size_t) {
   DynamicJsonDocument doc(8192);
   if (deserializeJson(doc, data, len)) {
     Serial.println("[CONFIG] Failed to parse JSON.");
+    req->send(400, "text/plain", "Invalid JSON");
     return;
   }
 
-  config.cfgInSTA = doc["system"]["cfgInSTA"];
+  // Debug: Print received JSON
+  Serial.println("[CONFIG] Received JSON:");
+  serializeJsonPretty(doc, Serial);
+  Serial.println();
+
+  // System configuration
+  config.cfgInSTA = doc["system"]["cfgInSTA"] | false;
+  config.cfgInStandardMode = doc["system"]["cfgInStandardMode"] | false;
+
+  // WiFi configuration - handle both "pw" and "password" fields
   config.ssid = doc["wifi"]["ssid"].as<String>();
-  config.password = doc["wifi"]["pw"].as<String>();
+  if (doc["wifi"].containsKey("pw")) {
+    config.password = doc["wifi"]["pw"].as<String>();
+  } else if (doc["wifi"].containsKey("password")) {
+    config.password = doc["wifi"]["password"].as<String>();
+  }
   config.clientIP = doc["wifi"]["ip"].as<String>();
   config.gatewayIP = doc["wifi"]["gw"].as<String>();
   config.subnet = doc["wifi"]["mask"].as<String>();
+
+  // Clear all sensors first
+  for (int i = 0; i < MAX_SENSORS; i++) {
+    config.sensors[i].name = "";
+    config.sensors[i].active = false;
+  }
 
   JsonArray arr = doc["sensors"].as<JsonArray>();
   uint16_t usedIDs[32] = {0};
@@ -669,25 +699,27 @@ server.on("/config", HTTP_GET, [](AsyncWebServerRequest* req) {
 
   for (int i = 0; i < arr.size() && i < MAX_SENSORS; i++) {
     JsonObject s = arr[i];
+    
+    // Get and validate name
     const char* namePtr = s["name"].as<const char*>();
     String name;
-
     if (namePtr) {
       name = String(namePtr);
       name.trim();
     }
-
     if (!namePtr || name == "") {
       Serial.printf("[WARN] Sensor %d has invalid name, skipping.\n", i);
       continue;
     }
 
+    // Get and validate homeeID
     uint16_t id = s["homeeID"] | 0;
     if (id == 0) {
       Serial.printf("[WARN] Sensor %d has invalid ID, skipping.\n", i);
       continue;
     }
 
+    // Check for duplicate IDs
     bool duplicate = false;
     for (int k = 0; k < valid; k++) {
       if (usedIDs[k] == id) duplicate = true;
@@ -698,48 +730,94 @@ server.on("/config", HTTP_GET, [](AsyncWebServerRequest* req) {
     }
     usedIDs[valid++] = id;
 
+    // Configure sensor
     auto& sens = config.sensors[i];
+    sens.active = s["active"] | true;
     sens.name = name;
     sens.homeeID = id;
     sens.type = s["type"].as<String>();
-
-    // Hier Adresse als Hex-String parsen:
-    const char* addrStr = s["address"].as<const char*>();
-    if (addrStr != nullptr && strlen(addrStr) > 0) {
-      sens.address = (uint16_t)strtol(addrStr, nullptr, 16);
-    } else {
-      sens.address = 0;
-    }
-
+    
+    // FIXED: Address handling - convert from number (already in hex format from frontend)
+    sens.address = s["address"] | 0;
+    
+    // Signal configuration
     sens.signal1 = s["signal1"] | 0;
     sens.signal2 = s["signal2"] | 0;
     sens.signal3 = s["signal3"] | 0;
     sens.signal4 = s["signal4"] | 0;
-    sens.delay1 = s["delay1"] | 0;
-    sens.delay2 = s["delay2"] | 0;
-    sens.delay3 = s["delay3"] | 0;
-    sens.delay4 = s["delay4"] | 0;
-    sens.active = true;
+    
+    // FIXED: Delay handling - properly handle null/NaN values
+    if (s.containsKey("delay1") && !s["delay1"].isNull()) {
+      sens.delay1 = s["delay1"].as<double>();
+    } else {
+      sens.delay1 = NAN;
+    }
+    
+    if (s.containsKey("delay2") && !s["delay2"].isNull()) {
+      sens.delay2 = s["delay2"].as<double>();
+    } else {
+      sens.delay2 = NAN;
+    }
+    
+    if (s.containsKey("delay3") && !s["delay3"].isNull()) {
+      sens.delay3 = s["delay3"].as<double>();
+    } else {
+      sens.delay3 = NAN;
+    }
+    
+    if (s.containsKey("delay4") && !s["delay4"].isNull()) {
+      sens.delay4 = s["delay4"].as<double>();
+    } else {
+      sens.delay4 = NAN;
+    }
+
+    // Set up runtime data
+    config.RTData[i].OCSensor = false;
+    if (sens.type == "OpenClose Sensor") {
+      config.RTData[i].OCSensor = true;
+      config.RTData[i].btnCnt = 4;
+    } else if (sens.type == "FourButton Remote") {
+      config.RTData[i].btnCnt = 4;
+    } else if (sens.type == "ThreeButton Remote") {
+      config.RTData[i].btnCnt = 3;
+    } else if (sens.type == "TwoButton Remote") {
+      config.RTData[i].btnCnt = 2;
+    } else if (sens.type == "OneButton Remote") {
+      config.RTData[i].btnCnt = 1;
+    } else {
+      config.RTData[i].btnCnt = 0;
+    }
+
+    Serial.printf("[CONFIG] Configured sensor %d: %s (ID: %d, Type: %s, Addr: 0x%X)\n", 
+                  i, sens.name.c_str(), sens.homeeID, sens.type.c_str(), sens.address);
+    Serial.printf("  Signals: %d, %d, %d, %d\n", 
+                  sens.signal1, sens.signal2, sens.signal3, sens.signal4);
+    Serial.printf("  Delays: %.1f, %.1f, %.1f, %.1f\n", 
+                  sens.delay1, sens.delay2, sens.delay3, sens.delay4);
   }
 
-  for (int i = arr.size(); i < MAX_SENSORS; i++) {
-    config.sensors[i].name = "";
-    config.sensors[i].active = false;
-  }
-
-  // Prüfe, ob noch mindestens ein aktiver Sensor vorhanden ist
+  // Check if at least one sensor is active
   int activeCount = 0;
   for (int i = 0; i < MAX_SENSORS; i++) {
-    if (config.sensors[i].active) activeCount++;
+    if (config.sensors[i].active && config.sensors[i].name != "") {
+      activeCount++;
+    }
   }
+  
   if (activeCount == 0) {
     Serial.println("[CONFIG] At least one sensor must remain configured.");
+    req->send(400, "text/plain", "At least one sensor must be configured");
     return;
   }
 
-  config.save();
-  Serial.println("[CONFIG] Configuration saved.");
-  req->send(200, "text/plain", "Configuration updated successfully."); 
+  // Save configuration
+  if (config.save()) {
+    Serial.printf("[CONFIG] Configuration saved successfully with %d sensors.\n", activeCount);
+    req->send(200, "text/plain", "Configuration updated successfully.");
+  } else {
+    Serial.println("[CONFIG] Failed to save configuration.");
+    req->send(500, "text/plain", "Failed to save configuration");
+  }
 });
 
 

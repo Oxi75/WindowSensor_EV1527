@@ -2,6 +2,23 @@
 #include <LittleFS.h>
 #include <ArduinoJson.h>
 
+ConfigManager::ConfigManager()
+{
+  uint32_t now = millis();
+
+  for (uint32_t i = 0; i < MAX_SENSORS; i++)
+  {
+    RTData[i].signal1_TS = now - 5000; // Set initial timestamps to 5 seconds ago
+    RTData[i].signal2_TS = now - 5000; // Set initial timestamps to 5 seconds ago 
+    RTData[i].signal3_TS = now - 5000; // Set initial timestamps to 5 seconds ago
+    RTData[i].signal4_TS = now - 5000; // Set initial timestamps to 5 seconds ago
+    RTData[i].signal1 = false; // Initialize signal1 to false
+    RTData[i].signal2 = false; // Initialize signal2 to false
+    RTData[i].signal3 = false; // Initialize signal3 to false
+    RTData[i].signal4 = false; // Initialize signal4 to false
+  }
+}
+
 bool ConfigManager::load()
 {
   if (!LittleFS.exists(CONFIG_FILE)) {

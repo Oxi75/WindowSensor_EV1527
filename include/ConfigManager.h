@@ -97,6 +97,8 @@ struct SensorRuntimeData
 class ConfigManager
 {
 public:
+  ConfigManager();
+
   bool cfgInSTA = false;
   bool cfgInStandardMode = false;     // neue Checkbox „Enable configuration in standard mode"
 
