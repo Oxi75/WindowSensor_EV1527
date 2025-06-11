@@ -25,9 +25,10 @@
 #include <RCSwitch.h>
 
 
-#define PIN_SYSMODE  GPIO_NUM_34           // GPIO pin for system mode selection (AP or STA)
-#define PIN_LED      GPIO_NUM_2            // GPIO pin for the LED
-#define PIN_RECEIVER GPIO_NUM_15
+#define PIN_SYSMODE       GPIO_NUM_34           // GPIO pin for system mode selection (AP or STA)
+#define PIN_LED           GPIO_NUM_2            // GPIO pin for the LED
+#define PIN_RECEIVER_PWR  GPIO_NUM_4  	        // GPIO pin for the receiver power (optional, can be used to power the receiver)
+#define PIN_RECEIVER      GPIO_NUM_15  	        // GPIO pin for the receiver power (optional, can be used to power the receiver)
 
 const double FW_VERSION = 0.08;
 String FW_VERSION_STR = String(FW_VERSION, 2);
@@ -146,7 +147,7 @@ IPAddress IPAddressFromString(const String& str) {
 }
 
 void startWiFi() 
-{
+{ 
   pinMode(PIN_SYSMODE, INPUT_PULLUP);
   isAPMode = digitalRead(PIN_SYSMODE) == LOW;
 
@@ -383,7 +384,7 @@ void homee_setup()
 static double lastValue = 1;
 void homee_updateValues(uint32_t snsNo)
 {  
-//  Serial.printf("update homee values for Sensor No %d (%s)\n", snsNo, config.sensors[snsNo].type);
+  Serial.printf("update homee values for Sensor No %d (%s)\n", snsNo, config.sensors[snsNo].type);
 
   nodeAttributes *na;
   
@@ -444,8 +445,13 @@ RCSwitch mySwitch = RCSwitch();
 
 void RCSwitch_setup()
 {
-    mySwitch.enableReceive(digitalPinToInterrupt(PIN_RECEIVER)); // Empfänger-Pin setzen
-    Serial.println("[RCSWITCH] RCSwitch setup complete.");
+  pinMode(PIN_RECEIVER_PWR, OUTPUT);    // set the receiver power pin as output
+  digitalWrite(PIN_RECEIVER_PWR, HIGH); // switch off the receiver power pin (HIGH = off)
+  delay(750); // wait for the receiver to stabilize
+  digitalWrite(PIN_RECEIVER_PWR, LOW); // switch on the receiver power pin (LOW = on)
+
+  mySwitch.enableReceive(digitalPinToInterrupt(PIN_RECEIVER)); // Empfänger-Pin setzen
+  Serial.println("[RCSWITCH] RCSwitch setup complete.");
 }
 
 /// ****************************************************
@@ -454,15 +460,25 @@ void RCSwitch_setup()
 /// ****************************************************
 void RCSwitch_check(bool HomeeEnabled)
 {
+  static bool firstCall = true;
+  if (firstCall)
+  {
+    Serial.print("RCSwitch_check() for the first time.");
+    if (HomeeEnabled) Serial.println(" Homee is enabled.");
+    else Serial.println(" Homee is disabled.");
+    firstCall = false;
+  }
+
   uint32_t snsAddr = 0; // Initialisiere den Wert
   uint32_t snsValue = 0;
   uint32_t protocol = 0; // Protokoll initialisieren
-  uint32_t lastReceivedTS = millis() - 10000; // Zeitstempel des letzten empfangenen Signals (long time ago)
+  uint32_t now = millis() - 10000; // Zeitstempel des letzten empfangenen Signals (long time ago)
 
   
   if (mySwitch.available())
   {
-    lastReceivedTS = millis(); // Aktualisiere den Zeitstempel des letzten empfangenen Signals
+    ledOn();        // Switch on the LED to indicate signal reception
+    now = millis(); // Aktualisiere den Zeitstempel des letzten empfangenen Signals
 
     uint32_t data = mySwitch.getReceivedValue();    
     lastSignal.binary = String(data, BIN);
@@ -493,8 +509,6 @@ void RCSwitch_check(bool HomeeEnabled)
       //Serial.printf("[CONFIG] Sensor %d is not active or has no name or invalid homeeID -> skipping.\n", sns);      
       continue;
     }
-
-    uint32_t now = millis();
 
     if (config.sensors[sns].address == snsAddr) // Überprüfen, ob die Adresse übereinstimmt 
     {
@@ -579,13 +593,16 @@ void RCSwitch_check(bool HomeeEnabled)
       config.RTData[sns].signal1_val = 0;       //button1 is released
     }
 
-    if (HomeeEnabled && (config.RTData[sns].signal1 || config.RTData[sns].signal2 || config.RTData[sns].signal3 || config.RTData[sns].signal4))
+    if (config.RTData[sns].signal1 || config.RTData[sns].signal2 || config.RTData[sns].signal3 || config.RTData[sns].signal4)
     {
       Serial.printf("Sensor %s has changed: %d | %d | %d | %d\n", config.sensors[sns].name.c_str(), config.RTData[sns].signal1_val,
                      config.RTData[sns].signal2_val, config.RTData[sns].signal3_val, config.RTData[sns].signal4_val);
+
+      if (HomeeEnabled) homee_updateValues(sns); // Update homee values for the sensor
     }
   } 
 
+  ledOff();  // Switch off the LED after processing the signal
 }
 
 
