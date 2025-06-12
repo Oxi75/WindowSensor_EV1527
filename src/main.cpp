@@ -27,8 +27,8 @@
 
 #define PIN_SYSMODE       GPIO_NUM_34           // GPIO pin for system mode selection (AP or STA)
 #define PIN_LED           GPIO_NUM_2            // GPIO pin for the LED
-#define PIN_RECEIVER_PWR  GPIO_NUM_4  	        // GPIO pin for the receiver power (optional, can be used to power the receiver)
-#define PIN_RECEIVER      GPIO_NUM_15  	        // GPIO pin for the receiver power (optional, can be used to power the receiver)
+#define PIN_RECEIVER_PWR  GPIO_NUM_15  	        // GPIO pin for the receiver power (optional, can be used to power the receiver)
+#define PIN_RECEIVER      GPIO_NUM_4  	        // GPIO pin for the receiver power (optional, can be used to power the receiver)
 
 const double FW_VERSION = 0.08;
 String FW_VERSION_STR = String(FW_VERSION, 2);
@@ -437,6 +437,7 @@ void homee_updateValues(uint32_t snsNo)
     delay(200);
     yield();
   } 
+
 } 
 
 
@@ -599,6 +600,10 @@ void RCSwitch_check(bool HomeeEnabled)
                      config.RTData[sns].signal2_val, config.RTData[sns].signal3_val, config.RTData[sns].signal4_val);
 
       if (HomeeEnabled) homee_updateValues(sns); // Update homee values for the sensor
+      config.RTData[sns].signal1 = false; // Reset the signal after processing
+      config.RTData[sns].signal2 = false;
+      config.RTData[sns].signal3 = false;
+      config.RTData[sns].signal4 = false;
     }
   } 
 
@@ -889,7 +894,7 @@ server.on("/config", HTTP_POST, [](AsyncWebServerRequest* req) {}, NULL,
     req->redirect("/config.html");
   });
 
-  server.begin();
+  if (isAPMode) server.begin();
   Serial.println("[SETUP] Web server started");
 
   homee_setup(); // Homee setup
