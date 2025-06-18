@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <RCSwitch.h>
 #include <Wire.h>
+#include "global_defines.h"
 
 //#define DEBUG                         // Uncomment to enable debug output
 #define ARDUINO_VERSION     1.0
@@ -14,9 +15,6 @@
 #endif    
 
 #define MAX_PAUSE_INTERVAL  10000       // dummy code timeout
-#define I2C_SLAVE_ADDRESS   0x08        // I2C address for this Arduino
-#define DUMMY_CODE_0        0x00000000 // dummy code to insert after long pause
-#define DUMMY_CODE_F        0xFFFFFFFF // dummy code to indicate an empty FIFO
 
 #define FIFO_SIZE 32                    // max buffered codes
 

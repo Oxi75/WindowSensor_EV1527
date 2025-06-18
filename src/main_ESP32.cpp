@@ -18,12 +18,12 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include <ESPAsyncWebServer.h>
+#include <Wire.h>
 #include <LittleFS.h>
 #include "ConfigManager.h"
 #include <string>
 #include "virtualHomee.hpp"
-#include <RCSwitch.h>
-
+#include "global_defines.h"
 
 #define PIN_SYSMODE       GPIO_NUM_34           // GPIO pin for system mode selection (AP or STA)
 #define PIN_LED           GPIO_NUM_2            // GPIO pin for the LED
@@ -441,10 +441,14 @@ void homee_updateValues(uint32_t snsNo)
 } 
 
 
-// RCSwitch related functions
-RCSwitch mySwitch = RCSwitch();
 
-void RCSwitch_setup()
+
+
+/// ****************************************************
+/// @brief Check for received signals and update sensor data accordingly.
+/// @param HomeeEnabled 
+/// ****************************************************
+void Receiver_setup()
 {
   pinMode(PIN_RECEIVER_PWR, OUTPUT);    // set the receiver power pin as output
   digitalWrite(PIN_RECEIVER_PWR, LOW); // switch off the receiver power
@@ -452,20 +456,35 @@ void RCSwitch_setup()
   digitalWrite(PIN_RECEIVER_PWR, HIGH); // switch on the receiver power
   delay(2000); // wait for the receiver to stabilize
 
-  mySwitch.enableReceive(digitalPinToInterrupt(PIN_RECEIVER)); // Empfänger-Pin setzen
-  Serial.println("[RCSWITCH] RCSwitch setup complete.");
+  Serial.println("[Receiver] setup complete.");
 }
 
-/// ****************************************************
-/// @brief Check for received RCSwitch signals and update sensor data accordingly.
-/// @param HomeeEnabled 
-/// ****************************************************
-void RCSwitch_check(bool HomeeEnabled)
+
+// Signal related functions
+uint32_t Receiver_getSignal()
+{
+    Wire.requestFrom(I2C_SLAVE_ADDRESS, 4); // Nur sensorData wird übertragen
+
+    if (Wire.available() >= 4)
+    {
+        uint32_t sensorData = 0;
+        sensorData  = Wire.read();
+        sensorData |= Wire.read() << 8;
+        sensorData |= Wire.read() << 16;
+        sensorData |= Wire.read() << 24;
+
+        return sensorData;
+    }
+
+    else return 0x0000000; // Rückgabe eines Dummy-Wertes, wenn nicht genügend Daten verfügbar sind    
+}
+
+void Receiver_check(bool HomeeEnabled)
 {
   static bool firstCall = true;
   if (firstCall)
   {
-    Serial.print("RCSwitch_check() for the first time.");
+    Serial.print("Receiver_check() for the first time.");
     if (HomeeEnabled) Serial.println(" Homee is enabled.");
     else Serial.println(" Homee is disabled.");
     firstCall = false;
@@ -476,30 +495,22 @@ void RCSwitch_check(bool HomeeEnabled)
   uint32_t protocol = 0; // Protokoll initialisieren
   uint32_t now = millis() - 10000; // Zeitstempel des letzten empfangenen Signals (long time ago)
 
-  
-  if (mySwitch.available())
+  uint32_t sensorData = Receiver_getSignal(); // Lese die Signaldaten von Arduino
+  if ((sensorData != DUMMY_CODE_0) && (sensorData != DUMMY_CODE_F))
   {
     ledOn();        // Switch on the LED to indicate signal reception
     now = millis(); // Aktualisiere den Zeitstempel des letzten empfangenen Signals
 
-    uint32_t data = mySwitch.getReceivedValue();    
-    lastSignal.binary = String(data, BIN);
+    lastSignal.binary = String(sensorData, BIN);
 
-    protocol = mySwitch.getReceivedProtocol(); // Protokoll des empfangenen Signals
-    lastSignal.protocol = String(protocol);
-
-    lastSignal.bitLength = mySwitch.getReceivedBitlength(); // Bitlänge des empfangenen Signals
-
-    snsValue = data & 0x000000F; // Extrahiere die unteren 4 Bit für den Signalwert
+    snsValue = sensorData & 0x000000F; // Extrahiere die unteren 4 Bit für den Signalwert
     lastSignal.sensorData = String(snsValue, DEC); // Extrahiere die unteren 4 Bit für den Signalwert
 
-    snsAddr = data >> 4; // Extrahiere die oberen 20 Bit für die Sensoradresse    
+    snsAddr = sensorData >> 4; // Extrahiere die oberen 20 Bit für die Sensoradresse    
     lastSignal.sensorAddress = String(snsAddr, HEX); // Adresse aus den oberen 20 Bit extrahieren
     lastSignal.sensorAddress.toUpperCase(); // Adresse in Großbuchstaben umwandeln
 
-    mySwitch.resetAvailable(); // Verfügbare Daten zurücksetzen
-
-    Serial.printf("[RCSWITCH] Received signal: Address: 0x%05x, Value: %d, Protocol: %d, Bitlength: %d, Binary: %s\n", snsAddr, snsValue, protocol, lastSignal.bitLength, lastSignal.binary.c_str());
+    Serial.printf("[Receiver] Received signal: Address: 0x%05x, Value: %d, Binary: %s\n", snsAddr, snsValue, lastSignal.binary.c_str());
   }
 
   for (uint32_t sns = 0; sns < MAX_SENSORS; sns++)  // Durchlaufe alle konfigurierten Sensoren bis Sensor gefunden oder alle Sensoren geprüft wurden
@@ -621,8 +632,7 @@ void setup()
 
   LED_setup();
   ledOn(); // LED einschalten, um den Start anzuzeigen
-
-  RCSwitch_setup(); // RCSwitch initialisieren 
+  Receiver_setup();
 
   if (!LittleFS.begin()) {
     Serial.println("[ERROR] Failed to start LittleFS!");
@@ -914,6 +924,6 @@ void loop()
   }
 
   if (!isAPMode) WiFi_check();
-  RCSwitch_check(!isAPMode);
+  Receiver_check(!isAPMode);
   yield();  //delay is not allowed here, because homee connection would become unstable
 }
