@@ -27,7 +27,7 @@
 
 #define PIN_SYSMODE       GPIO_NUM_34           // GPIO pin for system mode selection (AP or STA)
 #define PIN_LED           GPIO_NUM_2            // GPIO pin for the LED
-#define PIN_RECEIVER_PWR  GPIO_NUM_15  	        // GPIO pin for the receiver power (optional, can be used to power the receiver)
+#define PIN_RECEIVER_PWR  GPIO_NUM_12  	        // GPIO pin for the receiver power (optional, can be used to power the receiver)
 #define PIN_RECEIVER      GPIO_NUM_4  	        // GPIO pin for the receiver power (optional, can be used to power the receiver)
 
 const double FW_VERSION = 0.08;
@@ -447,9 +447,10 @@ RCSwitch mySwitch = RCSwitch();
 void RCSwitch_setup()
 {
   pinMode(PIN_RECEIVER_PWR, OUTPUT);    // set the receiver power pin as output
-  digitalWrite(PIN_RECEIVER_PWR, HIGH); // switch off the receiver power pin (HIGH = off)
-  delay(750); // wait for the receiver to stabilize
-  digitalWrite(PIN_RECEIVER_PWR, LOW); // switch on the receiver power pin (LOW = on)
+  digitalWrite(PIN_RECEIVER_PWR, LOW); // switch off the receiver power
+  delay(500); // wait for the receiver to stabilize
+  digitalWrite(PIN_RECEIVER_PWR, HIGH); // switch on the receiver power
+  delay(2000); // wait for the receiver to stabilize
 
   mySwitch.enableReceive(digitalPinToInterrupt(PIN_RECEIVER)); // Empfänger-Pin setzen
   Serial.println("[RCSWITCH] RCSwitch setup complete.");

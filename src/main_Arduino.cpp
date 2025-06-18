@@ -2,11 +2,17 @@
 #include <RCSwitch.h>
 #include <Wire.h>
 
+//#define DEBUG                         // Uncomment to enable debug output
 #define ARDUINO_VERSION     1.0
-#define DEBUG
 #define DIN_RECEIVER        2           // interrupt pin for 433 MHz receiver
 #define DOUT_POWER          5           // pin to control power for receiver module
-#define FILTER_TIME_MS      200         // duplicate filter timeout
+
+#ifdef DEBUG
+    #define FILTER_TIME_MS      200         // duplicate filter timeout
+#else
+    #define FILTER_TIME_MS      1000        // duplicate filter timeout
+#endif    
+
 #define MAX_PAUSE_INTERVAL  10000       // dummy code timeout
 #define I2C_SLAVE_ADDRESS   0x08        // I2C address for this Arduino
 #define DUMMY_CODE_0        0x00000000 // dummy code to insert after long pause
@@ -97,14 +103,22 @@ void setup()
     delay(500);
 
     mySwitch.enableReceive(digitalPinToInterrupt(DIN_RECEIVER));
-
-    Serial.println("Loop() started, waiting for codes...");
 }
 
 // ===== Main loop =====
 
 void loop()
 {
+    static bool firstRun = true;
+    if (firstRun)
+    {
+        firstRun = false;
+        Serial.println("Loop() started, waiting for codes...");
+#ifndef DEBUG
+        Serial.println("Note: Debug-Mode disabled, codes will not be printed here!");
+#endif
+    }
+
     unsigned long now = millis();
 
     if (mySwitch.available())
