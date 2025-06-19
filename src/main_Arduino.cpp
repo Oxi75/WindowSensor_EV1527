@@ -11,7 +11,7 @@
 #ifdef DEBUG
     #define FILTER_TIME_MS      1000        // duplicate filter timeout
 #else
-    #define FILTER_TIME_MS      200         // duplicate filter timeout
+    #define FILTER_TIME_MS      300         // duplicate filter timeout
 #endif    
 
 #define MAX_PAUSE_INTERVAL  10000       // dummy code timeout
@@ -61,13 +61,11 @@ void fifoPush(unsigned long value)
 
 unsigned long fifoPop()
 {
-    if (!fifoIsEmpty())
-    {
-        unsigned long value = fifoBuffer[fifoTail];
-        fifoTail = (fifoTail + 1) % FIFO_SIZE;
-        return value;
-    }
-    return DUMMY_CODE_F; // dummy code
+    if (fifoIsEmpty()) return DUMMY_CODE_0; // return dummy code if empty
+
+    unsigned long value = fifoBuffer[fifoTail];
+    fifoTail = (fifoTail + 1) % FIFO_SIZE;
+    return value;
 }
 
 // ===== I2C request handler =====
@@ -149,8 +147,8 @@ void loop()
 #ifdef DEBUG
         Serial.println("No activity -> insert dummy code");
 #endif
-        fifoPush(DUMMY_CODE_0); // dummy code
+        fifoPush(DUMMY_CODE_F); // dummy code
         lastReceivedTime = now; 
-        lastReceivedCode = DUMMY_CODE_0; // reset last received code
+        lastReceivedCode = DUMMY_CODE_F; // reset last received code
     }
 }
