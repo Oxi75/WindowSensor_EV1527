@@ -14,7 +14,18 @@
       padding: 15px;
       margin-bottom: 20px;
       border-radius: 8px;
-      background: #f9f9f9;
+    }
+    .section:nth-of-type(1) {
+      background: #f3f8ff;
+    }
+    .section:nth-of-type(2) {
+      background: #f9f3ff;
+    }
+    .section:nth-of-type(3) {
+      background: #f3fff4;
+    }
+    .section:nth-of-type(4) {
+      background: #fffaf3;
     }
     .section h2 {
       margin-top: 0;
@@ -72,6 +83,19 @@
       color: green;
       font-weight: bold;
     }
+    .checkbox-row {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5em;
+      margin-bottom: 10px;
+    }
+    .checkbox-row input[type="checkbox"] {
+      margin: 0;
+    }
+    .checkbox-row label {
+      margin: 0;
+      white-space: nowrap;
+    }
   </style>
 </head>
 <body>
@@ -80,9 +104,14 @@
   <div class="section">
     <h2>System</h2>
     <p><b>Firmware:</b> <span id="fwver">?</span></p>
-    <label><input type="checkbox" id="cfgInSTA"> Enable configuration in standard mode</label>
-    <button onclick="restartDevice()">Restart</button>
 
+    <div class="checkbox-row">
+      <input type="checkbox" id="cfgInSTA">
+      <label for="cfgInSTA">Enable configuration in standard mode</label>
+    </div>
+    <div>
+      <button onclick="restartDevice()">Restart</button>
+    </div>      
     <hr>
     <h3>OTA Update</h3>
     <form id="updateForm" enctype="multipart/form-data">
@@ -105,10 +134,7 @@
     <h2>Last Received Signal</h2>
     <label>Sensor Address (hex): <input type="text" id="sensorAddress" readonly></label>
     <label>Value: <input type="text" id="sensorData" readonly></label>
-    <label>Bit Length: <input type="text" id="bitLength" readonly></label>
-    <label>Decimal: <input type="text" id="decimal" readonly></label>
     <label>Binary: <input type="text" id="binary" readonly></label>
-    <label>Protocol: <input type="text" id="protocol" readonly></label>
     <p class="timestamp" id="timestamp"></p>
   </div>
 
@@ -121,6 +147,7 @@
     <input type="file" id="cfgfile" accept=".json">
     <button onclick="uploadConfig()">Upload Config File</button>
   </div>
+
 
 <script>
 function restartDevice() {
@@ -540,10 +567,7 @@ document.getElementById("cfgInSTA").addEventListener("change", () => {
 function updateSignalDisplay(data) {
   document.getElementById("sensorAddress").value = data.sensorAddress || "";
   document.getElementById("sensorData").value = data.sensorData || "";
-  document.getElementById("bitLength").value = data.bitLength || "";
-  document.getElementById("decimal").value = data.decimal || "";
   document.getElementById("binary").value = data.binary || "";
-  document.getElementById("protocol").value = data.protocol || "";
   document.getElementById("timestamp").textContent = new Date().toLocaleString();
 }
 

@@ -31,7 +31,7 @@
 #define PIN_RECEIVER      GPIO_NUM_4  	        // GPIO pin for the receiver power (optional, can be used to power the receiver)
 #define RECEIVER_CHECK_INTERVAL 350             // Interval in ms to check for received signals
 
-const double FW_VERSION = 0.08;
+const double FW_VERSION = 0.1;
 String FW_VERSION_STR = String(FW_VERSION, 2);
 
 #define CANodeProfileOneButtonRemote 20
@@ -111,18 +111,14 @@ struct LastSignal
 {
     String sensorAddress;
     String sensorData;
-    uint8_t bitLength;
     String binary;
-    String protocol;
 };
 
 // Globale Variable mit dem letzten Signal
 LastSignal lastSignal = {
     .sensorAddress = "-------",
     .sensorData = "-",
-    .bitLength = 0,
     .binary = "------------------------",
-    .protocol = "-"
 };
  
 
@@ -382,7 +378,7 @@ void homee_setup()
 static double lastValue = 1;
 void homee_updateValues(uint32_t snsNo)
 {  
-  Serial.printf("update homee values for Sensor No %d (%s)\n", snsNo, config.sensors[snsNo].type);
+  Serial.printf("update homee values for Sensor No %d (%s)\n", snsNo, config.sensors[snsNo].type.c_str());
 
   nodeAttributes *na;
   
@@ -863,9 +859,7 @@ server.on("/config", HTTP_POST, [](AsyncWebServerRequest* req) {}, NULL,
 
       doc["sensorAddress"] = lastSignal.sensorAddress;
       doc["sensorData"]    = lastSignal.sensorData;
-      doc["bitLength"]     = lastSignal.bitLength;
       doc["binary"]        = lastSignal.binary;
-      doc["protocol"]      = lastSignal.protocol;
 
       serializeJson(doc, *response);
       request->send(response);
@@ -937,7 +931,8 @@ void loop()
 
   if ( millis() - lastReceiverCheck >= RECEIVER_CHECK_INTERVAL) // Check receiver every 100ms
   {
-    Receiver_check(!isAPMode); // Check for received signals and update sensor data
+//    Receiver_check(!isAPMode); // Check for received signals and update sensor data
+    Receiver_check(true); // Check for received signals and update sensor data
     lastReceiverCheck = millis(); // Update the last check time
   }
 
