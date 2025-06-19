@@ -29,6 +29,7 @@
 #define PIN_LED           GPIO_NUM_2            // GPIO pin for the LED
 #define PIN_RECEIVER_PWR  GPIO_NUM_12  	        // GPIO pin for the receiver power (optional, can be used to power the receiver)
 #define PIN_RECEIVER      GPIO_NUM_4  	        // GPIO pin for the receiver power (optional, can be used to power the receiver)
+#define RECEIVER_CHECK_INTERVAL 250             // Interval in ms to check for received signals
 
 const double FW_VERSION = 0.08;
 String FW_VERSION_STR = String(FW_VERSION, 2);
@@ -456,6 +457,8 @@ void Receiver_setup()
   digitalWrite(PIN_RECEIVER_PWR, HIGH); // switch on the receiver power
   delay(2000); // wait for the receiver to stabilize
 
+  Wire.begin();
+
   Serial.println("[Receiver] setup complete.");
 }
 
@@ -476,7 +479,7 @@ uint32_t Receiver_getSignal()
         return sensorData;
     }
 
-    else return 0x0000000; // Rückgabe eines Dummy-Wertes, wenn nicht genügend Daten verfügbar sind    
+    else return DUMMY_CODE_F; // Rückgabe eines Dummy-Wertes, wenn nicht genügend Daten verfügbar sind    
 }
 
 void Receiver_check(bool HomeeEnabled)
@@ -498,17 +501,17 @@ void Receiver_check(bool HomeeEnabled)
   uint32_t sensorData = Receiver_getSignal(); // Lese die Signaldaten von Arduino
   if ((sensorData != DUMMY_CODE_0) && (sensorData != DUMMY_CODE_F))
   {
-    ledOn();        // Switch on the LED to indicate signal reception
-    now = millis(); // Aktualisiere den Zeitstempel des letzten empfangenen Signals
+    ledOn();                                       // Switch on the LED to indicate signal reception
+    now = millis();                                // Aktualisiere den Zeitstempel des letzten empfangenen Signals
 
     lastSignal.binary = String(sensorData, BIN);
 
-    snsValue = sensorData & 0x000000F; // Extrahiere die unteren 4 Bit für den Signalwert
-    lastSignal.sensorData = String(snsValue, DEC); // Extrahiere die unteren 4 Bit für den Signalwert
+    snsValue = sensorData & 0x000000F;                  // Extrahiere die unteren 4 Bit für den Signalwert
+    lastSignal.sensorData = String(snsValue, DEC);      // Extrahiere die unteren 4 Bit für den Signalwert
 
-    snsAddr = sensorData >> 4; // Extrahiere die oberen 20 Bit für die Sensoradresse    
-    lastSignal.sensorAddress = String(snsAddr, HEX); // Adresse aus den oberen 20 Bit extrahieren
-    lastSignal.sensorAddress.toUpperCase(); // Adresse in Großbuchstaben umwandeln
+    snsAddr = sensorData >> 4;                          // Extrahiere die oberen 20 Bit für die Sensoradresse    
+    lastSignal.sensorAddress = String(snsAddr, HEX);    // Adresse aus den oberen 20 Bit extrahieren
+    lastSignal.sensorAddress.toUpperCase();             // Adresse in Großbuchstaben umwandeln
 
     Serial.printf("[Receiver] Received signal: Address: 0x%05x, Value: %d, Binary: %s\n", snsAddr, snsValue, lastSignal.binary.c_str());
   }
@@ -620,6 +623,8 @@ void Receiver_check(bool HomeeEnabled)
   } 
 
   ledOff();  // Switch off the LED after processing the signal
+
+  Serial.println("[Receiver] Signal processing complete.");
 }
 
 
@@ -913,9 +918,10 @@ server.on("/config", HTTP_POST, [](AsyncWebServerRequest* req) {}, NULL,
 }
 
 
+uint32_t lastReceiverCheck = 0;
 
 void loop()
-{
+{ 
   static bool firstCall = true;
   if (firstCall)
   {
@@ -924,6 +930,12 @@ void loop()
   }
 
   if (!isAPMode) WiFi_check();
-  Receiver_check(!isAPMode);
+
+  if ( millis() - lastReceiverCheck >= RECEIVER_CHECK_INTERVAL) // Check receiver every 100ms
+  {
+    Receiver_check(!isAPMode); // Check for received signals and update sensor data
+    lastReceiverCheck = millis(); // Update the last check time
+  }
+
   yield();  //delay is not allowed here, because homee connection would become unstable
 }

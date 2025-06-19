@@ -9,9 +9,9 @@
 #define DOUT_POWER          5           // pin to control power for receiver module
 
 #ifdef DEBUG
-    #define FILTER_TIME_MS      200         // duplicate filter timeout
-#else
     #define FILTER_TIME_MS      1000        // duplicate filter timeout
+#else
+    #define FILTER_TIME_MS      200         // duplicate filter timeout
 #endif    
 
 #define MAX_PAUSE_INTERVAL  10000       // dummy code timeout
@@ -124,9 +124,12 @@ void loop()
         unsigned long code = mySwitch.getReceivedValue();
 
         if ((code != lastReceivedCode) || (now - lastReceivedTime) > FILTER_TIME_MS)
-        {            
+        {   
             fifoPush(code);
             lastReceivedCode = code;
+#ifndef DEBUG
+            Serial.print(".");
+#endif            
         }
 #ifdef DEBUG
         else
