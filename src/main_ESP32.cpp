@@ -15,8 +15,9 @@
   - homee-api-esp32: https://github.com/Oxi75/homee-api-esp32
 */
 
-#include <Update.h>
+#include "global_defines.h"
 #include <Arduino.h>
+#include <Update.h>
 #include <WiFi.h>
 #include <ESPAsyncWebServer.h>
 #include <Wire.h>
@@ -24,12 +25,7 @@
 #include "ConfigManager.h"
 #include <string>
 #include "virtualHomee.hpp"
-#include "global_defines.h"
 
-#define PIN_SYSMODE       GPIO_NUM_34           // GPIO pin for system mode selection (AP or STA)
-#define PIN_LED           GPIO_NUM_2            // GPIO pin for the LED
-#define PIN_RECEIVER_PWR  GPIO_NUM_12  	        // GPIO pin for the receiver power (optional, can be used to power the receiver)
-#define PIN_RECEIVER      GPIO_NUM_4  	        // GPIO pin for the receiver power (optional, can be used to power the receiver)
 #define RECEIVER_CHECK_INTERVAL 350             // Interval in ms to check for received signals
 
 String FW_VERSION_STR = String(FW_VERSION_ESP, 2);
@@ -450,7 +446,7 @@ void Receiver_setup()
   digitalWrite(PIN_RECEIVER_PWR, HIGH); // switch on the receiver power
   delay(2000); // wait for the receiver to stabilize
 
-  Wire.begin();
+  Wire.begin(PIN_SDA, PIN_SCL);
 
   Serial.println("[Receiver] setup complete.");
 }
