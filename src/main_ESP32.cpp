@@ -15,6 +15,7 @@
   - homee-api-esp32: https://github.com/Oxi75/homee-api-esp32
 */
 
+#include <Update.h>
 #include <Arduino.h>
 #include <WiFi.h>
 #include <ESPAsyncWebServer.h>
@@ -31,8 +32,7 @@
 #define PIN_RECEIVER      GPIO_NUM_4  	        // GPIO pin for the receiver power (optional, can be used to power the receiver)
 #define RECEIVER_CHECK_INTERVAL 350             // Interval in ms to check for received signals
 
-const double FW_VERSION = 0.1;
-String FW_VERSION_STR = String(FW_VERSION, 2);
+String FW_VERSION_STR = String(FW_VERSION_ESP, 2);
 
 #define CANodeProfileOneButtonRemote 20
 #define CANodeProfileTwoButtonRemote 24
@@ -254,7 +254,7 @@ void homee_setup()
     na->setUnit("");  
     na->setMinimumValue(0.0);
     na->setMaximumValue(1000.0); 
-    na->setCurrentValue(FW_VERSION);
+    na->setCurrentValue(FW_VERSION_ESP);
     na->setEditable(false);
     na->setCallback(nullptr);
 
@@ -869,6 +869,66 @@ server.on("/config", HTTP_POST, [](AsyncWebServerRequest* req) {}, NULL,
     req->redirect("/config.html");
   });
 
+
+// OTA Update Handler
+server.on("/update", HTTP_POST, [](AsyncWebServerRequest *request) {
+  // Response nach Upload-Completion
+  bool shouldReboot = !Update.hasError();
+  AsyncWebServerResponse *response = request->beginResponse(200, "text/plain", 
+    shouldReboot ? "Upload successful! Rebooting..." : "Upload failed!");
+  response->addHeader("Connection", "close");
+  request->send(response);
+  
+  if (shouldReboot) {
+    Serial.println("[OTA] Update successful, rebooting in 2 seconds...");
+    delay(2000);
+    ESP.restart();
+  }
+}, [](AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
+  // Upload Handler
+  if (!index) {
+    Serial.printf("[OTA] Starting update: %s\n", filename.c_str());
+    
+    // Bestimme Update-Typ basierend auf Dateiname
+    int cmd = (filename.indexOf("spiffs") > -1) ? U_SPIFFS : U_FLASH;
+    
+    if (!Update.begin(UPDATE_SIZE_UNKNOWN, cmd)) {
+      Serial.println("[OTA] Update.begin failed");
+      Update.printError(Serial);
+      return;
+    }
+  }
+  
+  // Schreibe Daten
+  if (Update.write(data, len) != len) {
+    Serial.println("[OTA] Update.write failed");
+    Update.printError(Serial);
+    return;
+  }
+  
+  if (final) {
+    if (Update.end(true)) {
+      Serial.printf("[OTA] Update completed: %u bytes\n", index + len);
+    } else {
+      Serial.println("[OTA] Update.end failed");
+      Update.printError(Serial);
+    }
+  }
+});
+
+// Progress Handler für Fortschrittsanzeige
+server.on("/update_progress", HTTP_GET, [](AsyncWebServerRequest *request) {
+  String json = "{";
+  json += "\"progress\":" + String(Update.progress());
+  json += ",\"size\":" + String(Update.size());
+  json += ",\"hasError\":" + String(Update.hasError() ? "true" : "false");
+  if (Update.hasError()) {
+    json += ",\"error\":" + String(Update.getError());
+  }
+  json += "}";
+  request->send(200, "application/json", json);
+});
+
   if (isAPMode) server.begin();
   Serial.println("[SETUP] Web server started");
 
@@ -880,7 +940,9 @@ void setup()
 {
   Serial.begin(115200);
   delay(500);
-  Serial.println("[SETUP] Starting setup...");
+  Serial.println("***********************************************");
+  Serial.println("***  433Mhz Sensor Central for homee V" + FW_VERSION_STR + "  ***");
+  Serial.println("***********************************************");
 
   LED_setup();
   ledOn(); // LED einschalten, um den Start anzuzeigen

@@ -96,6 +96,49 @@
       margin: 0;
       white-space: nowrap;
     }
+#updateStatus {
+      margin-top: 10px;
+      padding: 10px;
+      border-radius: 5px;
+    }
+    
+    #updateStatus .success {
+      background-color: #d4edda;
+      border: 1px solid #c3e6cb;
+      color: #155724;
+    }
+    
+    #updateStatus .error {
+      background-color: #f8d7da;
+      border: 1px solid #f5c6cb;
+      color: #721c24;
+    }
+    
+    #updateForm {
+      margin-bottom: 15px;
+    }
+    
+    #updateForm input[type="file"] {
+      margin-bottom: 10px;
+    }
+    
+    #updateForm button {
+      padding: 8px 16px;
+      background-color: #007bff;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    
+    #updateForm button:hover {
+      background-color: #0056b3;
+    }
+    
+    #updateForm button:disabled {
+      background-color: #6c757d;
+      cursor: not-allowed;
+    }
   </style>
 </head>
 <body>
@@ -176,23 +219,74 @@ function uploadFirmware() {
   const formData = new FormData();
   formData.append('update', file);
   
-  statusDiv.innerHTML = '<div>Uploading firmware...</div>';
+  // Fortschrittsanzeige initialisieren
+  statusDiv.innerHTML = `
+    <div>Uploading firmware...</div>
+    <div style="width: 100%; background-color: #f0f0f0; border-radius: 3px; margin: 10px 0;">
+      <div id="progressBar" style="width: 0%; height: 20px; background-color: #4CAF50; border-radius: 3px; transition: width 0.3s;"></div>
+    </div>
+    <div id="progressText">0%</div>
+  `;
   
-  fetch('/update', {
-    method: 'POST',
-    body: formData
-  })
-  .then(response => {
-    if (response.ok) {
-      statusDiv.innerHTML = '<div class="success">Firmware uploaded successfully! Device will restart.</div>';
+  // XMLHttpRequest für bessere Fortschrittskontrolle
+  const xhr = new XMLHttpRequest();
+  
+  // Upload-Fortschritt
+  xhr.upload.addEventListener('progress', function(e) {
+    if (e.lengthComputable) {
+      const percentComplete = (e.loaded / e.total) * 100;
+      const progressBar = document.getElementById('progressBar');
+      const progressText = document.getElementById('progressText');
+      
+      if (progressBar && progressText) {
+        progressBar.style.width = percentComplete + '%';
+        progressText.textContent = Math.round(percentComplete) + '%';
+      }
+    }
+  });
+  
+  // Upload-Abschluss
+  xhr.addEventListener('load', function() {
+    if (xhr.status === 200) {
+      statusDiv.innerHTML = '<div class="success">Firmware uploaded successfully! Device is rebooting...</div>';
+      
+      // Warte auf Reboot und zeige Countdown
+      let countdown = 10;
+      const countdownDiv = document.createElement('div');
+      countdownDiv.innerHTML = `<div>Device will be ready in ${countdown} seconds...</div>`;
+      statusDiv.appendChild(countdownDiv);
+      
+      const countdownInterval = setInterval(() => {
+        countdown--;
+        countdownDiv.innerHTML = `<div>Device will be ready in ${countdown} seconds...</div>`;
+        
+        if (countdown <= 0) {
+          clearInterval(countdownInterval);
+          countdownDiv.innerHTML = '<div class="success">Device should be ready now. You may need to refresh the page.</div>';
+        }
+      }, 1000);
+      
     } else {
       statusDiv.innerHTML = '<div class="error">Firmware upload failed. Please try again.</div>';
     }
-  })
-  .catch(error => {
-    console.error('Upload error:', error);
-    statusDiv.innerHTML = '<div class="error">Upload failed: ' + error.message + '</div>';
   });
+  
+  // Upload-Fehler
+  xhr.addEventListener('error', function() {
+    statusDiv.innerHTML = '<div class="error">Upload failed: Network error</div>';
+  });
+  
+  // Upload-Timeout
+  xhr.addEventListener('timeout', function() {
+    statusDiv.innerHTML = '<div class="error">Upload failed: Timeout</div>';
+  });
+  
+  // Timeout setzen (5 Minuten für große Firmware-Dateien)
+  xhr.timeout = 300000;
+  
+  // Upload starten
+  xhr.open('POST', '/update');
+  xhr.send(formData);
 }
 
 function uploadConfig() {

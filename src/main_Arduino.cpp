@@ -4,7 +4,6 @@
 #include "global_defines.h"
 
 //#define DEBUG                         // Uncomment to enable debug output
-#define ARDUINO_VERSION     1.0
 #define DIN_RECEIVER        2           // interrupt pin for 433 MHz receiver
 #define DOUT_POWER          5           // pin to control power for receiver module
 
@@ -86,7 +85,7 @@ void setup()
 {
     Serial.begin(9600);
     Serial.println("******************************************");
-    Serial.println("***    RC Receiver       " + String(ARDUINO_VERSION, 2) + "          ***");
+    Serial.println("***    RC Receiver       " + String(FW_VERSION_ARDUINO, 2) + "          ***");
     Serial.println("******************************************");
 
     Wire.begin(I2C_SLAVE_ADDRESS);  // Initialize I2C as slave with specified address
