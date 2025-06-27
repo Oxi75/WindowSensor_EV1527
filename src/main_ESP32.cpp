@@ -51,9 +51,9 @@ String FW_VERSION_STR = String(FW_VERSION_ESP, 2);
 #define AttrID_Sig4       0b10100000  //one part of the Attribute ID of homee, the other one is the sensor number
 
 
-const char* AP_SSID = "vhih";
+const char* AP_SSID = "EV1527 for homee";
 const char* AP_PASS = "12345678";
-const IPAddress AP_IP(192, 168, 42, 1);
+const IPAddress AP_IP(192, 168, 4, 1);
 const IPAddress AP_SUBNET(255, 255, 255, 0);
 bool isAPMode = false;
 
@@ -126,6 +126,7 @@ const unsigned long wifiCheckInterval = 30000; // Alle 30 Sekunden WLAN prüfen
 const unsigned long wifiMaxAttempts = 20; // 
 static uint32_t wifiConnectAttempts = 0; // Anzahl der Versuche, sich mit dem WLAN zu verbinden
 static bool WiFi_reconnect = false;  //system is in reconnection
+String configBodyContent = "";  //variable to hold the HTML content of the config page
 
 IPAddress IPAddressFromString(const String& str) {
   IPAddress ip;
@@ -141,14 +142,17 @@ void startWiFi()
   pinMode(PIN_SYSMODE, INPUT_PULLUP);
   isAPMode = digitalRead(PIN_SYSMODE) == LOW;
 
-  if (isAPMode) {
+  if (isAPMode)
+  {
     Serial.println("[BOOT] Starting in AccessPoint mode");
     WiFi.softAPConfig(AP_IP, AP_IP, AP_SUBNET);
     WiFi.softAP(AP_SSID, AP_PASS);
     Serial.println("[AP] SSID: " + String(AP_SSID));
     Serial.println("[AP] Password: " + String(AP_PASS));
     Serial.println("[AP] IP: " + WiFi.softAPIP().toString());
-  } else {
+  }
+  else
+  {
     Serial.println("[BOOT] Starting in Standard mode");
     WiFi.config(
       IPAddressFromString(config.clientIP),
@@ -659,169 +663,207 @@ server.on("/config", HTTP_GET, [](AsyncWebServerRequest* req) {
   server.on("/config.json", HTTP_GET, [](AsyncWebServerRequest* req) {
     req->send(LittleFS, CONFIG_FILE, "application/json");
   });
-
-server.on("/config", HTTP_POST, [](AsyncWebServerRequest* req) {}, NULL,
-[](AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t, size_t) {
-  DynamicJsonDocument doc(8192);
-  if (deserializeJson(doc, data, len)) {
-    Serial.println("[CONFIG] Failed to parse JSON.");
-    req->send(400, "text/plain", "Invalid JSON");
-    return;
-  }
-
-  // Debug: Print received JSON
-  Serial.println("[CONFIG] Received JSON:");
-  serializeJsonPretty(doc, Serial);
-  Serial.println();
-
-  // System configuration
-  config.cfgInSTA = doc["system"]["cfgInSTA"] | false;
-  config.cfgInStandardMode = doc["system"]["cfgInStandardMode"] | false;
-
-  // WiFi configuration - handle both "pw" and "password" fields
-  config.ssid = doc["wifi"]["ssid"].as<String>();
-  if (doc["wifi"].containsKey("pw")) {
-    config.password = doc["wifi"]["pw"].as<String>();
-  } else if (doc["wifi"].containsKey("password")) {
-    config.password = doc["wifi"]["password"].as<String>();
-  }
-  config.clientIP = doc["wifi"]["ip"].as<String>();
-  config.gatewayIP = doc["wifi"]["gw"].as<String>();
-  config.subnet = doc["wifi"]["mask"].as<String>();
-
-  // Clear all sensors first
-  for (int i = 0; i < MAX_SENSORS; i++) {
-    config.sensors[i].name = "";
-    config.sensors[i].active = false;
-  }
-
-  JsonArray arr = doc["sensors"].as<JsonArray>();
-  uint16_t usedIDs[32] = {0};
-  int valid = 0;
-
-  for (int i = 0; i < arr.size() && i < MAX_SENSORS; i++) {
-    JsonObject s = arr[i];
-    
-    // Get and validate name
-    const char* namePtr = s["name"].as<const char*>();
-    String name;
-    if (namePtr) {
-      name = String(namePtr);
-      name.trim();
-    }
-    if (!namePtr || name == "") {
-      Serial.printf("[WARN] Sensor %d has invalid name, skipping.\n", i);
-      continue;
-    }
-
-    // Get and validate homeeID
-    uint16_t id = s["homeeID"] | 0;
-    if (id == 0) {
-      Serial.printf("[WARN] Sensor %d has invalid ID, skipping.\n", i);
-      continue;
-    }
-
-    // Check for duplicate IDs
-    bool duplicate = false;
-    for (int k = 0; k < valid; k++) {
-      if (usedIDs[k] == id) duplicate = true;
-    }
-    if (duplicate) {
-      Serial.printf("[WARN] Duplicate homee-ID (%d), sensor %d skipped.\n", id, i);
-      continue;
-    }
-    usedIDs[valid++] = id;
-
-    // Configure sensor
-    auto& sens = config.sensors[i];
-    sens.active = s["active"] | true;
-    sens.name = name;
-    sens.homeeID = id;
-    sens.type = s["type"].as<String>();
-    
-    // FIXED: Address handling - convert from number (already in hex format from frontend)
-    sens.address = s["address"] | 0;
-    
-    // Signal configuration
-    sens.signal1 = s["signal1"] | 0;
-    sens.signal2 = s["signal2"] | 0;
-    sens.signal3 = s["signal3"] | 0;
-    sens.signal4 = s["signal4"] | 0;
-    
-    // FIXED: Delay handling - properly handle null/NaN values
-    if (s.containsKey("delay1") && !s["delay1"].isNull()) {
-      sens.delay1 = s["delay1"].as<double>();
-    } else {
-      sens.delay1 = NAN;
-    }
-    
-    if (s.containsKey("delay2") && !s["delay2"].isNull()) {
-      sens.delay2 = s["delay2"].as<double>();
-    } else {
-      sens.delay2 = NAN;
-    }
-    
-    if (s.containsKey("delay3") && !s["delay3"].isNull()) {
-      sens.delay3 = s["delay3"].as<double>();
-    } else {
-      sens.delay3 = NAN;
-    }
-    
-    if (s.containsKey("delay4") && !s["delay4"].isNull()) {
-      sens.delay4 = s["delay4"].as<double>();
-    } else {
-      sens.delay4 = NAN;
-    }
-
-    // Set up runtime data
-    config.RTData[i].OCSensor = false;
-    if (sens.type == "OpenClose Sensor") {
-      config.RTData[i].OCSensor = true;
-      config.RTData[i].btnCnt = 4;
-    } else if (sens.type == "FourButton Remote") {
-      config.RTData[i].btnCnt = 4;
-    } else if (sens.type == "ThreeButton Remote") {
-      config.RTData[i].btnCnt = 3;
-    } else if (sens.type == "TwoButton Remote") {
-      config.RTData[i].btnCnt = 2;
-    } else if (sens.type == "OneButton Remote") {
-      config.RTData[i].btnCnt = 1;
-    } else {
-      config.RTData[i].btnCnt = 0;
-    }
-
-    Serial.printf("[CONFIG] Configured sensor %d: %s (ID: %d, Type: %s, Addr: 0x%X)\n", 
-                  i, sens.name.c_str(), sens.homeeID, sens.type.c_str(), sens.address);
-    Serial.printf("  Signals: %d, %d, %d, %d\n", 
-                  sens.signal1, sens.signal2, sens.signal3, sens.signal4);
-    Serial.printf("  Delays: %.1f, %.1f, %.1f, %.1f\n", 
-                  sens.delay1, sens.delay2, sens.delay3, sens.delay4);
-  }
-
-  // Check if at least one sensor is active
-  int activeCount = 0;
-  for (int i = 0; i < MAX_SENSORS; i++) {
-    if (config.sensors[i].active && config.sensors[i].name != "") {
-      activeCount++;
-    }
-  }
   
-  if (activeCount == 0) {
-    Serial.println("[CONFIG] At least one sensor must remain configured.");
-    req->send(400, "text/plain", "At least one sensor must be configured");
-    return;
-  }
 
-  // Save configuration
-  if (config.save()) {
-    Serial.printf("[CONFIG] Configuration saved successfully with %d sensors.\n", activeCount);
-    req->send(200, "text/plain", "Configuration updated successfully.");
-  } else {
-    Serial.println("[CONFIG] Failed to save configuration.");
-    req->send(500, "text/plain", "Failed to save configuration");
-  }
-});
+server.on("/config", HTTP_POST, 
+  [](AsyncWebServerRequest* req) {
+    // Dieser Handler wird aufgerufen, wenn alle Body-Daten empfangen wurden
+    // Die eigentliche Verarbeitung passiert im Body-Handler unten
+  }, 
+  NULL,
+  [](AsyncWebServerRequest* req, uint8_t* data, size_t len, size_t index, size_t total) {
+    // Body-Handler - sammelt alle Chunks
+    
+    // Bei erstem Chunk: Buffer initialisieren
+    if (index == 0) {
+      configBodyContent = "";
+      configBodyContent.reserve(total + 100); // Etwas extra Platz
+      Serial.printf("[CONFIG] Starting to receive body, total size: %d bytes\n", total);
+    }
+    
+    // Aktuellen Chunk hinzufügen
+    for (size_t i = 0; i < len; i++) {
+      configBodyContent += (char)data[i];
+    }
+    
+    Serial.printf("[CONFIG] Received chunk: %d-%d of %d bytes\n", index, index + len - 1, total);
+    
+    // Wenn alle Daten empfangen wurden, JSON verarbeiten
+    if (index + len == total) {
+      Serial.printf("[CONFIG] Complete body received (%d bytes), processing JSON...\n", configBodyContent.length());
+      
+      DynamicJsonDocument doc(16384);
+      DeserializationError error = deserializeJson(doc, configBodyContent);
+      
+      if (error) {
+        Serial.println("[CONFIG] Failed to parse JSON.");
+        Serial.print("[CONFIG] JSON Error: ");
+        Serial.println(error.c_str());
+        Serial.printf("[CONFIG] First 200 chars: %.200s\n", configBodyContent.c_str());
+        Serial.printf("[CONFIG] Last 200 chars: %s\n", configBodyContent.substring(max(0, (int)configBodyContent.length() - 200)).c_str());
+        req->send(400, "text/plain", "Invalid JSON");
+        configBodyContent = ""; // Cleanup
+        return;
+      }
 
+      // Debug: Print received JSON
+      Serial.println("[CONFIG] Received JSON:");
+      serializeJsonPretty(doc, Serial);
+      Serial.println();
+
+      // System configuration
+      config.cfgInSTA = doc["system"]["cfgInSTA"] | false;
+      config.cfgInStandardMode = doc["system"]["cfgInStandardMode"] | false;
+
+      // WiFi configuration - handle both "pw" and "password" fields
+      config.ssid = doc["wifi"]["ssid"].as<String>();
+      if (doc["wifi"].containsKey("pw")) {
+        config.password = doc["wifi"]["pw"].as<String>();
+      } else if (doc["wifi"].containsKey("password")) {
+        config.password = doc["wifi"]["password"].as<String>();
+      }
+      config.clientIP = doc["wifi"]["ip"].as<String>();
+      config.gatewayIP = doc["wifi"]["gw"].as<String>();
+      config.subnet = doc["wifi"]["mask"].as<String>();
+
+      // Clear all sensors first
+      for (int i = 0; i < MAX_SENSORS; i++) {
+        config.sensors[i].name = "";
+        config.sensors[i].active = false;
+      }
+
+      JsonArray arr = doc["sensors"].as<JsonArray>();
+      uint16_t usedIDs[32] = {0};
+      int valid = 0;
+
+      for (int i = 0; i < arr.size() && i < MAX_SENSORS; i++) {
+        JsonObject s = arr[i];
+        
+        // Get and validate name
+        const char* namePtr = s["name"].as<const char*>();
+        String name;
+        if (namePtr) {
+          name = String(namePtr);
+          name.trim();
+        }
+        if (!namePtr || name == "") {
+          Serial.printf("[WARN] Sensor %d has invalid name, skipping.\n", i);
+          continue;
+        }
+
+        // Get and validate homeeID
+        uint16_t id = s["homeeID"] | 0;
+        if (id == 0) {
+          Serial.printf("[WARN] Sensor %d has invalid ID, skipping.\n", i);
+          continue;
+        }
+
+        // Check for duplicate IDs
+        bool duplicate = false;
+        for (int k = 0; k < valid; k++) {
+          if (usedIDs[k] == id) duplicate = true;
+        }
+        if (duplicate) {
+          Serial.printf("[WARN] Duplicate homee-ID (%d), sensor %d skipped.\n", id, i);
+          continue;
+        }
+        usedIDs[valid++] = id;
+
+        // Configure sensor
+        auto& sens = config.sensors[i];
+        sens.active = s["active"] | true;
+        sens.name = name;
+        sens.homeeID = id;
+        sens.type = s["type"].as<String>();
+        
+        // FIXED: Address handling - convert from number (already in hex format from frontend)
+        sens.address = s["address"] | 0;
+        
+        // Signal configuration
+        sens.signal1 = s["signal1"] | 0;
+        sens.signal2 = s["signal2"] | 0;
+        sens.signal3 = s["signal3"] | 0;
+        sens.signal4 = s["signal4"] | 0;
+        
+        // FIXED: Delay handling - properly handle null/NaN values
+        if (s.containsKey("delay1") && !s["delay1"].isNull()) {
+          sens.delay1 = s["delay1"].as<double>();
+        } else {
+          sens.delay1 = NAN;
+        }
+        
+        if (s.containsKey("delay2") && !s["delay2"].isNull()) {
+          sens.delay2 = s["delay2"].as<double>();
+        } else {
+          sens.delay2 = NAN;
+        }
+        
+        if (s.containsKey("delay3") && !s["delay3"].isNull()) {
+          sens.delay3 = s["delay3"].as<double>();
+        } else {
+          sens.delay3 = NAN;
+        }
+        
+        if (s.containsKey("delay4") && !s["delay4"].isNull()) {
+          sens.delay4 = s["delay4"].as<double>();
+        } else {
+          sens.delay4 = NAN;
+        }
+
+        // Set up runtime data
+        config.RTData[i].OCSensor = false;
+        if (sens.type == "OpenClose Sensor") {
+          config.RTData[i].OCSensor = true;
+          config.RTData[i].btnCnt = 4;
+        } else if (sens.type == "FourButton Remote") {
+          config.RTData[i].btnCnt = 4;
+        } else if (sens.type == "ThreeButton Remote") {
+          config.RTData[i].btnCnt = 3;
+        } else if (sens.type == "TwoButton Remote") {
+          config.RTData[i].btnCnt = 2;
+        } else if (sens.type == "OneButton Remote") {
+          config.RTData[i].btnCnt = 1;
+        } else {
+          config.RTData[i].btnCnt = 0;
+        }
+
+        Serial.printf("[CONFIG] Configured sensor %d: %s (ID: %d, Type: %s, Addr: 0x%X)\n", 
+                      i, sens.name.c_str(), sens.homeeID, sens.type.c_str(), sens.address);
+        Serial.printf("  Signals: %d, %d, %d, %d\n", 
+                      sens.signal1, sens.signal2, sens.signal3, sens.signal4);
+        Serial.printf("  Delays: %.1f, %.1f, %.1f, %.1f\n", 
+                      sens.delay1, sens.delay2, sens.delay3, sens.delay4);
+      }
+
+      // Check if at least one sensor is active
+      int activeCount = 0;
+      for (int i = 0; i < MAX_SENSORS; i++) {
+        if (config.sensors[i].active && config.sensors[i].name != "") {
+          activeCount++;
+        }
+      }
+      
+      if (activeCount == 0) {
+        Serial.println("[CONFIG] At least one sensor must remain configured.");
+        req->send(400, "text/plain", "At least one sensor must be configured");
+        configBodyContent = ""; // Cleanup
+        return;
+      }
+
+      // Save configuration
+      if (config.save()) {
+        Serial.printf("[CONFIG] Configuration saved successfully with %d sensors.\n", activeCount);
+        req->send(200, "text/plain", "Configuration updated successfully.");
+      } else {
+        Serial.println("[CONFIG] Failed to save configuration.");
+        req->send(500, "text/plain", "Failed to save configuration");
+      }
+      
+      // Cleanup
+      configBodyContent = "";
+    }
+  }
+);
 
   server.on("/saveFlag", HTTP_GET, [](AsyncWebServerRequest *request)
   {

@@ -96,7 +96,7 @@
       margin: 0;
       white-space: nowrap;
     }
-#updateStatus {
+    #updateStatus {
       margin-top: 10px;
       padding: 10px;
       border-radius: 5px;
@@ -219,7 +219,6 @@ function uploadFirmware() {
   const formData = new FormData();
   formData.append('update', file);
   
-  // Fortschrittsanzeige initialisieren
   statusDiv.innerHTML = `
     <div>Uploading firmware...</div>
     <div style="width: 100%; background-color: #f0f0f0; border-radius: 3px; margin: 10px 0;">
@@ -228,10 +227,8 @@ function uploadFirmware() {
     <div id="progressText">0%</div>
   `;
   
-  // XMLHttpRequest für bessere Fortschrittskontrolle
   const xhr = new XMLHttpRequest();
   
-  // Upload-Fortschritt
   xhr.upload.addEventListener('progress', function(e) {
     if (e.lengthComputable) {
       const percentComplete = (e.loaded / e.total) * 100;
@@ -245,12 +242,10 @@ function uploadFirmware() {
     }
   });
   
-  // Upload-Abschluss
   xhr.addEventListener('load', function() {
     if (xhr.status === 200) {
       statusDiv.innerHTML = '<div class="success">Firmware uploaded successfully! Device is rebooting...</div>';
       
-      // Warte auf Reboot und zeige Countdown
       let countdown = 10;
       const countdownDiv = document.createElement('div');
       countdownDiv.innerHTML = `<div>Device will be ready in ${countdown} seconds...</div>`;
@@ -271,20 +266,16 @@ function uploadFirmware() {
     }
   });
   
-  // Upload-Fehler
   xhr.addEventListener('error', function() {
     statusDiv.innerHTML = '<div class="error">Upload failed: Network error</div>';
   });
   
-  // Upload-Timeout
   xhr.addEventListener('timeout', function() {
     statusDiv.innerHTML = '<div class="error">Upload failed: Timeout</div>';
   });
   
-  // Timeout setzen (5 Minuten für große Firmware-Dateien)
   xhr.timeout = 300000;
   
-  // Upload starten
   xhr.open('POST', '/update');
   xhr.send(formData);
 }
@@ -302,10 +293,8 @@ function uploadConfig() {
   const reader = new FileReader();
   reader.onload = function () {
     try {
-      // Validate JSON before upload
       const configData = JSON.parse(reader.result);
       
-      // FIXED: Use POST to /config instead of PUT to /config.json
       fetch("/config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -313,7 +302,7 @@ function uploadConfig() {
       }).then(res => {
         if (res.ok) {
           alert("Configuration uploaded successfully!");
-          location.reload(); // Reload to show new config
+          location.reload();
         } else {
           return res.text().then(errorText => {
             alert("Upload failed: " + errorText);
@@ -331,7 +320,6 @@ function uploadConfig() {
 
 let list = document.getElementById("sensorList");
 
-// Sensor type configurations - FIXED: Use backend-expected type names
 const sensorTypeConfigs = {
   "OpenClose": {
     backendType: "OpenClose Sensor",
@@ -374,14 +362,13 @@ const sensorTypeConfigs = {
   }
 };
 
-// FIXED: Function to map backend type names to frontend keys
 function getTypeKeyFromBackendType(backendType) {
   for (const [key, config] of Object.entries(sensorTypeConfigs)) {
     if (config.backendType === backendType) {
       return key;
     }
   }
-  return "OpenClose"; // default
+  return "OpenClose";
 }
 
 function renderSensors(sensors) {
@@ -395,10 +382,8 @@ function renderSensors(sensors) {
     row.className = "sensor";
     row.dataset.index = i;
     
-    // FIXED: Map backend type to frontend key
     const frontendType = getTypeKeyFromBackendType(s.type);
     
-    // Create signal groups HTML
     let signalGroupsHTML = "";
     Object.keys(sensorTypeConfigs).forEach(type => {
       const config = sensorTypeConfigs[type];
@@ -407,8 +392,7 @@ function renderSensors(sensors) {
       signalGroupsHTML += `<div class="signal-type-group ${isVisible ? '' : 'hidden'}" data-type="${type}">`;
       
       config.signals.forEach(signal => {
-        const signalValue = s[signal.key] ?? 0;
-        // FIXED: Better NaN handling
+        const signalValue = s[signal.key] ?? getDefaultSignalValue(type, signal.key);
         let delayValue = "";
         if (s[signal.delayKey] !== undefined && s[signal.delayKey] !== null && !isNaN(s[signal.delayKey])) {
           delayValue = s[signal.delayKey];
@@ -466,34 +450,58 @@ function updateSensorTypeVisibility(sensorIndex) {
   const typeSelect = sensorRow.querySelector('.type');
   const selectedType = typeSelect.value;
   
-  // Hide all signal type groups
   sensorRow.querySelectorAll('.signal-type-group').forEach(group => {
     group.classList.add('hidden');
   });
   
-  // Show the selected type group
   const selectedGroup = sensorRow.querySelector(`[data-type="${selectedType}"]`);
   if (selectedGroup) {
     selectedGroup.classList.remove('hidden');
   }
 }
 
-function emptySensor() {
-  return {
+// FIXED: Function to get proper default values based on sensor type and signal
+function getDefaultSignalValue(sensorType, signalKey) {
+  // For OpenClose sensors
+  if (sensorType === "OpenClose") {
+    switch (signalKey) {
+      case "signal1": return 6;   // Open signal default
+      case "signal2": return 9;   // Close signal default
+      case "signal3": return -1;  // Alarm signal not used
+      case "signal4": return 13;  // Battery signal default
+    }
+  }
+  
+  // For button remotes, only used signals get non-zero defaults
+  const config = sensorTypeConfigs[sensorType];
+  if (config && config.signals.some(s => s.key === signalKey)) {
+    return 0; // Used signals default to 0 for button remotes
+  }
+  
+  return 0; // Unused signals default to 0
+}
+
+// FIXED: Create proper empty sensor based on type
+function emptySensor(type = "OpenClose") {
+  const config = sensorTypeConfigs[type];
+  const sensor = {
     active: true,
     name: "",
     homeeID: 0,
-    type: "OpenClose Sensor",
+    type: config ? config.backendType : "OpenClose Sensor",
     address: 0,
-    signal1: 0,  // FIXED: Change from -1 to 0
-    signal2: 0,  // FIXED: Change from -1 to 0
-    signal3: 0,  // FIXED: Change from -1 to 0
-    signal4: 0,  // FIXED: Change from -1 to 0
+    signal1: getDefaultSignalValue(type, "signal1"),
+    signal2: getDefaultSignalValue(type, "signal2"), 
+    signal3: getDefaultSignalValue(type, "signal3"),
+    signal4: getDefaultSignalValue(type, "signal4"),
     delay1: null,
     delay2: null,
     delay3: null,
     delay4: null
   };
+  
+  console.log("Created empty sensor:", sensor);
+  return sensor;
 }
 
 function collectSensors() {
@@ -502,69 +510,49 @@ function collectSensors() {
     const frontendType = s.querySelector(".type").value;
     const backendType = sensorTypeConfigs[frontendType]?.backendType || "OpenClose Sensor";
     
-    // Get address as hex number (not string)
     const addressStr = s.querySelector(".address").value.trim();
     const addressValue = addressStr ? parseInt(addressStr, 16) : 0;
     
+    // Start with proper default values for this sensor type
     const sensorData = {
       active: s.querySelector(".active").checked,
       name: s.querySelector(".name").value.trim(),
       homeeID: parseInt(s.querySelector(".homeeID").value) || 0,
       type: backendType,
       address: addressValue,
-      signal1: 0,
-      signal2: 0,
-      signal3: 0,
-      signal4: 0,
+      signal1: getDefaultSignalValue(frontendType, "signal1"),
+      signal2: getDefaultSignalValue(frontendType, "signal2"),
+      signal3: getDefaultSignalValue(frontendType, "signal3"),
+      signal4: getDefaultSignalValue(frontendType, "signal4"),
       delay1: null,
       delay2: null,
       delay3: null,
       delay4: null
     };
     
-    // FIXED: Only read from the visible signal group
-    const visibleGroup = s.querySelector(`.signal-type-group[data-type="${frontendType}"]:not(.hidden)`);
-    if (visibleGroup) {
-      // Read signal values from visible group only
-      const signal1Input = visibleGroup.querySelector(".signal1");
-      const signal2Input = visibleGroup.querySelector(".signal2");
-      const signal3Input = visibleGroup.querySelector(".signal3");
-      const signal4Input = visibleGroup.querySelector(".signal4");
-      
-      if (signal1Input) sensorData.signal1 = parseInt(signal1Input.value) || 0;
-      if (signal2Input) sensorData.signal2 = parseInt(signal2Input.value) || 0;
-      if (signal3Input) sensorData.signal3 = parseInt(signal3Input.value) || 0;
-      if (signal4Input) sensorData.signal4 = parseInt(signal4Input.value) || 0;
-      
-      // Read delay values from visible group only
-      const delay1Input = visibleGroup.querySelector(".delay1");
-      const delay2Input = visibleGroup.querySelector(".delay2");
-      const delay3Input = visibleGroup.querySelector(".delay3");
-      const delay4Input = visibleGroup.querySelector(".delay4");
-      
-      if (delay1Input) {
-        const delay1 = delay1Input.value.trim();
-        sensorData.delay1 = (delay1 === "" || delay1 === "NaN") ? null : parseFloat(delay1);
-      }
-      if (delay2Input) {
-        const delay2 = delay2Input.value.trim();
-        sensorData.delay2 = (delay2 === "" || delay2 === "NaN") ? null : parseFloat(delay2);
-      }
-      if (delay3Input) {
-        const delay3 = delay3Input.value.trim();
-        sensorData.delay3 = (delay3 === "" || delay3 === "NaN") ? null : parseFloat(delay3);
-      }
-      if (delay4Input) {
-        const delay4 = delay4Input.value.trim();
-        sensorData.delay4 = (delay4 === "" || delay4 === "NaN") ? null : parseFloat(delay4);
-      }
-    } else {
-      console.warn(`No visible signal group found for sensor type: ${frontendType}`);
+    // Update with actual input values from the visible signal group
+    const config = sensorTypeConfigs[frontendType];
+    if (config) {
+      config.signals.forEach(signal => {
+        const signalInput = s.querySelector(`.${signal.key}`);
+        if (signalInput) {
+          const value = parseInt(signalInput.value);
+          if (!isNaN(value)) {
+            sensorData[signal.key] = value;
+          }
+        }
+        
+        const delayInput = s.querySelector(`.${signal.delayKey}`);
+        if (delayInput) {
+          const delay = delayInput.value.trim();
+          if (delay !== "" && delay !== "NaN" && !isNaN(parseFloat(delay))) {
+            sensorData[signal.delayKey] = parseFloat(delay);
+          }
+        }
+      });
     }
     
-    // Debug output
-    console.log(`Sensor ${sensors.length + 1}:`, sensorData);
-    
+    console.log(`Collected sensor ${sensors.length + 1}:`, sensorData);
     sensors.push(sensorData);
   });
   return sensors;
@@ -572,8 +560,17 @@ function collectSensors() {
 
 function addSensor(index) {
   let sensors = collectSensors();
-  sensors.splice(index + 1, 0, emptySensor());
+  // Use the same type as the sensor we're adding after
+  const currentSensorType = getTypeKeyFromBackendType(sensors[index].type);
+  sensors.splice(index + 1, 0, emptySensor(currentSensorType));
   renderSensors(sensors);
+  
+  // FIXED: Ensure visibility is updated for all sensors after render
+  setTimeout(() => {
+    document.querySelectorAll('.sensor').forEach((sensorRow, idx) => {
+      updateSensorTypeVisibility(idx);
+    });
+  }, 0);
 }
 
 function removeSensor(index) {
@@ -587,12 +584,12 @@ function saveConfig() {
   const data = {
     system: { 
       cfgInSTA: document.getElementById("cfgInSTA").checked,
-      cfgInStandardMode: document.getElementById("cfgInSTA").checked // FIXED: Map to both fields
+      cfgInStandardMode: document.getElementById("cfgInSTA").checked
     },
     wifi: {
       ssid: document.getElementById("ssid").value,
-      pw: document.getElementById("pw").value,      // FIXED: Use 'pw' for unencrypted
-      password: document.getElementById("pw").value, // FIXED: Also send as 'password'
+      pw: document.getElementById("pw").value,
+      password: document.getElementById("pw").value,
       ip: document.getElementById("ip").value,
       gw: document.getElementById("gw").value,
       mask: document.getElementById("mask").value
@@ -600,7 +597,7 @@ function saveConfig() {
     sensors: collectSensors()
   };
 
-  console.log("Saving config:", data); // Debug output
+  console.log("Saving config:", JSON.stringify(data, null, 2));
 
   fetch("/config", {
     method: "POST",
@@ -611,7 +608,10 @@ function saveConfig() {
     if (response.ok) {
       alert("Configuration saved successfully.");
     } else {
-      alert("Failed to save configuration: " + response.statusText);
+      return response.text().then(errorText => {
+        console.error("Save failed with response:", errorText);
+        alert("Failed to save configuration: " + errorText);
+      });
     }
   })
   .catch(error => {
@@ -620,7 +620,6 @@ function saveConfig() {
   });
 }
 
-// FIXED: Better config loading with error handling
 fetch("/config")
   .then(res => {
     if (!res.ok) {
@@ -629,22 +628,27 @@ fetch("/config")
     return res.json();
   })
   .then(json => {
-    console.log("Loaded config:", json); // Debug output
+    console.log("Loaded config:", json);
     
     document.getElementById("fwver").textContent = json.fw || "?";
     document.getElementById("cfgInSTA").checked = json.system?.cfgInSTA || json.system?.cfgInStandardMode || false;
     document.getElementById("ssid").value = json.wifi?.ssid || "";
-    // FIXED: Handle both 'password' and 'pw' fields
     document.getElementById("pw").value = json.wifi?.password || json.wifi?.pw || "";
     document.getElementById("ip").value = json.wifi?.ip || "";
     document.getElementById("gw").value = json.wifi?.gw || "";
     document.getElementById("mask").value = json.wifi?.mask || "";
     renderSensors(json.sensors || []);
+    
+    // FIXED: Ensure visibility is set correctly after initial load
+    setTimeout(() => {
+      document.querySelectorAll('.sensor').forEach((sensorRow, idx) => {
+        updateSensorTypeVisibility(idx);
+      });
+    }, 0);
   })
   .catch(error => {
     console.error("Config load error:", error);
     alert("Failed to load configuration: " + error.message);
-    // Load with defaults
     renderSensors([]);
   });
 
@@ -668,7 +672,6 @@ function updateSignalDisplay(data) {
   document.getElementById("timestamp").textContent = new Date().toLocaleString();
 }
 
-// Optional: Polling alle 2s mit Fehlerbehandlung
 setInterval(() => {
   fetch("/lastsignal")
     .then(res => {
@@ -682,7 +685,6 @@ setInterval(() => {
       }
     })
     .catch(error => {
-      // Silent fail for polling
       console.log("Signal polling error:", error);
     });
 }, 2000);
