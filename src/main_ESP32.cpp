@@ -623,7 +623,16 @@ void Receiver_check(bool HomeeEnabled)
 
 void webserver_setup()
 {
-  server.serveStatic("/config.html", LittleFS, "/config.html");
+  if ((isAPMode) || (config.cfgInStandardMode))
+  {
+    Serial.println("[WEB] Starting web server in configuration mode");
+    server.serveStatic("/config.html", LittleFS, "/config.html");
+  }
+  else
+  {
+    Serial.println("[WEB] Starting web server in normal mode");
+    server.serveStatic("/index.html", LittleFS, "/index.html");
+  }
 
 server.on("/config", HTTP_GET, [](AsyncWebServerRequest* req) {
   DynamicJsonDocument doc(4096);
@@ -707,9 +716,9 @@ server.on("/config", HTTP_POST,
       }
 
       // Debug: Print received JSON
-      Serial.println("[CONFIG] Received JSON:");
-      serializeJsonPretty(doc, Serial);
-      Serial.println();
+//      Serial.println("[CONFIG] Received JSON:");
+//      serializeJsonPretty(doc, Serial);
+//      Serial.println();
 
       // System configuration
       config.cfgInSTA = doc["system"]["cfgInSTA"] | false;
@@ -881,7 +890,7 @@ server.on("/config", HTTP_POST,
       }
   });
 
-  server.on("/restart", HTTP_GET, [](AsyncWebServerRequest *request)
+  server.on("/restart", HTTP_POST, [](AsyncWebServerRequest *request)
   {
       request->send(200, "text/plain", "Restarting...");
       Serial.println("[RESTART] Restarting ESP32 in 100ms...");
@@ -903,10 +912,18 @@ server.on("/config", HTTP_POST,
       request->send(response);
   });
 
-  server.on("/", HTTP_GET, [](AsyncWebServerRequest* req) {
-    req->redirect("/config.html");
-  });
-
+  if ((isAPMode) || (config.cfgInStandardMode))
+  {
+    server.on("/", HTTP_GET, [](AsyncWebServerRequest* req) {
+      req->redirect("/config.html");
+    });
+  }
+  else
+  {
+    server.on("/", HTTP_GET, [](AsyncWebServerRequest* req) {
+      req->redirect("/index.html");
+    });
+  }
 
 // OTA Update Handler
 server.on("/update", HTTP_POST, [](AsyncWebServerRequest *request) {
@@ -967,7 +984,7 @@ server.on("/update_progress", HTTP_GET, [](AsyncWebServerRequest *request) {
   request->send(200, "application/json", json);
 });
 
-  if (isAPMode) server.begin();
+  server.begin();
   Serial.println("[SETUP] Web server started");
 
   return; 
