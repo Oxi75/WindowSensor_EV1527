@@ -984,7 +984,7 @@ server.on("/update", HTTP_POST, [](AsyncWebServerRequest *request) {
     request->send(200, "application/json", json);
   });
 
-  
+
 server.on("/uploadweb", HTTP_POST, [](AsyncWebServerRequest* request) {
   request->send(200, "text/plain", "Use POST with multipart/form-data");
 }, [](AsyncWebServerRequest* request, const String& filename, size_t index, uint8_t* data, size_t len, bool final) {
@@ -1028,6 +1028,16 @@ server.on("/uploadweb", HTTP_POST, [](AsyncWebServerRequest* request) {
     }
   }
 });
+
+
+  server.on("/index.html", HTTP_GET, [](AsyncWebServerRequest *request){
+    if(LittleFS.exists("/index.html")){
+      request->send(LittleFS, "/index.html", "text/html");
+    } else {
+      request->send(404, "text/plain", "File not found");
+    }
+  });
+
 
   server.begin();
   Serial.println("[SETUP] Web server started");

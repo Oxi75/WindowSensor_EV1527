@@ -5,5 +5,5 @@
 #define DUMMY_CODE_F        0xFFFFFFFF // dummy code to indicate an empty FIFO
 #define DUMMY_CODE_E        0x0000000E // dummy code to indicate incomplete data
 
-#define FW_VERSION_ESP 0.34             //firmware version of the ESP code
+#define FW_VERSION_ESP 0.35             //firmware version of the ESP code
 #define FW_VERSION_ARDUINO 1.0         //firmware version of the ESP code
