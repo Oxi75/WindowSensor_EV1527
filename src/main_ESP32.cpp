@@ -971,17 +971,62 @@ server.on("/update", HTTP_POST, [](AsyncWebServerRequest *request) {
   }
 });
 
-// Progress Handler für Fortschrittsanzeige
-server.on("/update_progress", HTTP_GET, [](AsyncWebServerRequest *request) {
-  String json = "{";
-  json += "\"progress\":" + String(Update.progress());
-  json += ",\"size\":" + String(Update.size());
-  json += ",\"hasError\":" + String(Update.hasError() ? "true" : "false");
-  if (Update.hasError()) {
-    json += ",\"error\":" + String(Update.getError());
+  // Progress Handler für Fortschrittsanzeige
+  server.on("/update_progress", HTTP_GET, [](AsyncWebServerRequest *request) {
+    String json = "{";
+    json += "\"progress\":" + String(Update.progress());
+    json += ",\"size\":" + String(Update.size());
+    json += ",\"hasError\":" + String(Update.hasError() ? "true" : "false");
+    if (Update.hasError()) {
+      json += ",\"error\":" + String(Update.getError());
+    }
+    json += "}";
+    request->send(200, "application/json", json);
+  });
+
+  
+server.on("/uploadweb", HTTP_POST, [](AsyncWebServerRequest* request) {
+  request->send(200, "text/plain", "Use POST with multipart/form-data");
+}, [](AsyncWebServerRequest* request, const String& filename, size_t index, uint8_t* data, size_t len, bool final) {
+  static File uploadFile;
+  static bool uploadSuccess = false;
+  
+  if (index == 0) {
+    // Validate filename
+    if (filename != "config.html" && filename != "index.html") {
+      request->send(400, "text/plain", "Only config.html and index.html are allowed");
+      return;
+    }
+    
+    // Open file for writing
+    String path = "/" + filename;
+    uploadFile = LittleFS.open(path, "w");
+    uploadSuccess = uploadFile ? true : false;
+    
+    if (!uploadSuccess) {
+      request->send(500, "text/plain", "Failed to open file for writing");
+      return;
+    }
+    
+    Serial.printf("Uploading: %s\n", filename.c_str());
   }
-  json += "}";
-  request->send(200, "application/json", json);
+  
+  if (uploadSuccess && uploadFile) {
+    uploadFile.write(data, len);
+  }
+  
+  if (final) {
+    if (uploadFile) {
+      uploadFile.close();
+    }
+    
+    if (uploadSuccess) {
+      Serial.printf("Upload completed: %s\n", filename.c_str());
+      request->send(200, "text/plain", "File uploaded successfully");
+    } else {
+      request->send(500, "text/plain", "Upload failed");
+    }
+  }
 });
 
   server.begin();
