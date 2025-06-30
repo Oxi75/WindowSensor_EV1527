@@ -110,12 +110,23 @@
       text-align: center;
     }
     
+
     /* Button colors */
-    .btn-blue, button[onclick*="upload"], button[onclick*="save"], button[onclick*="Update"] {
+    .btn-blue, 
+    button[onclick*="save"], 
+    button[onclick*="Update"],
+    button[onclick*="uploadFirmware"],
+    button[onclick*="uploadWebInterfaceFile"],
+    button[onclick*="uploadConfig"] {
       background-color: #007bff;
       color: white;
     }
-    .btn-blue:hover, button[onclick*="upload"]:hover, button[onclick*="save"]:hover, button[onclick*="Update"]:hover {
+    .btn-blue:hover, 
+    button[onclick*="save"]:hover, 
+    button[onclick*="Update"]:hover,
+    button[onclick*="uploadFirmware"]:hover,
+    button[onclick*="uploadWebInterfaceFile"]:hover,
+    button[onclick*="uploadConfig"]:hover {
       background-color: #0056b3;
     }
     
@@ -125,14 +136,6 @@
     }
     .btn-green:hover, .download-btn:hover {
       background-color: #1e7e34;
-    }
-    
-    .btn-gray, button[onclick*="File"], input[type="file"] + button {
-      background-color: #6c757d;
-      color: white;
-    }
-    .btn-gray:hover, button[onclick*="File"]:hover, input[type="file"] + button:hover {
-      background-color: #545b62;
     }
     
     .btn-orange, button[onclick*="restart"] {
