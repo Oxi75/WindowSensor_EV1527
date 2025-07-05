@@ -7,3 +7,5 @@
 
 #define FW_VERSION_ESP 0.35             //firmware version of the ESP code
 #define FW_VERSION_ARDUINO 1.0         //firmware version of the ESP code
+
+//#define DEBUG                         // Uncomment to enable debug output

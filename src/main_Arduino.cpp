@@ -3,7 +3,6 @@
 #include <Wire.h>
 #include "global_defines.h"
 
-//#define DEBUG                         // Uncomment to enable debug output
 #define DIN_RECEIVER        2           // interrupt pin for 433 MHz receiver
 #define DOUT_POWER          5           // pin to control power for receiver module
 

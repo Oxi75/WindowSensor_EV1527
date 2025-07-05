@@ -534,7 +534,20 @@ void Receiver_check(bool HomeeEnabled)
 
       if (snsValue == config.sensors[sns].signal1)
       {
-        config.RTData[sns].signal1_val = 1.0;   //switch to on / pressed / high state
+        if ((!config.RTData[sns].OCSensor) && (config.sensors[sns].delay1 <= -2.0))  // Toggle mode
+        {
+           if (!config.RTData[sns].signal1) //was already set to a value - ignore signa until it was handled
+           {
+            //toggle the signal1 value
+             if (config.RTData[sns].signal1_val > 0) config.RTData[sns].signal1_val = 0.0;   
+               else config.RTData[sns].signal1_val = 1.0; 
+           }
+        }
+        else
+        {
+          config.RTData[sns].signal1_val = 1.0;   //switch to on / pressed / high state
+        }
+        
         config.RTData[sns].signal1 = true;      //signalizes that signal1 hast been changed
         config.RTData[sns].signal1_TS = now;    //update timestamp for signal1
       }
