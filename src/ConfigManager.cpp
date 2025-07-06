@@ -61,7 +61,13 @@ bool ConfigManager::load()
     sensors[i].signal2  = s["signal2"] | 0;
     sensors[i].signal3  = s["signal3"] | 0;
     sensors[i].signal4  = s["signal4"] | 0;
-    
+
+    // Load new mode configuration
+    sensors[i].toggle1 = s.containsKey("toggle1") ? s["toggle1"] | true : true; // Default to true if not present
+    sensors[i].toggle2 = s.containsKey("toggle2") ? s["toggle2"] | true : true; // Default to true if not present
+    sensors[i].toggle3 = s.containsKey("toggle3") ? s["toggle3"] | true : true; // Default to true if not present
+    sensors[i].toggle4 = s.containsKey("toggle4") ? s["toggle4"] | true : true; // Default to true if not present    
+
     // Load delay configuration - handle NaN values properly
     if (s.containsKey("delay1") && !s["delay1"].isNull()) {
       sensors[i].delay1 = s["delay1"];
@@ -99,30 +105,33 @@ bool ConfigManager::load()
     i++;
   }
 
-  if (i == 0)
+  for (int j = i; j < MAX_SENSORS; j++)
   {
     Serial.println("[CONFIG] No sensors in config. Setting defaults.");
-    sensors[0].active = true;
-    sensors[0].name = "DefaultSensor";
-    sensors[0].homeeID = 1;
-    sensors[0].type = "OpenClose";
-    sensors[0].address = 0;
-    sensors[0].signal1 = 9999;
-    sensors[0].signal2 = 9999;
-    sensors[0].signal3 = 9999;
-    sensors[0].signal4 = 9999;
-    sensors[0].delay1 = NAN;
-    sensors[0].delay2 = NAN;
-    sensors[0].delay3 = NAN;
-    sensors[0].delay4 = NAN;    
+    sensors[j].active = j == 0; // Only the first sensor is active by default
+    sensors[j].name = "DefaultSensor";
+    sensors[j].homeeID = 1;
+    sensors[j].type = "OpenClose";
+    sensors[j].address = 0;
+    sensors[j].signal1 = 9999;
+    sensors[j].signal2 = 9999;
+    sensors[j].signal3 = 9999;
+    sensors[j].signal4 = 9999;
+    sensors[j].delay1 = NAN;
+    sensors[j].delay2 = NAN;
+    sensors[j].delay3 = NAN;
+    sensors[j].delay4 = NAN;    
+    sensors[j].toggle1 = true; // Default toggle for signal1
+    sensors[j].toggle2 = true; // Default toggle for signal2
+    sensors[j].toggle3 = true; // Default toggle for signal3
+    sensors[j].toggle4 = true; // Default toggle for signal4
   }
-  else {
-    Serial.printf("[CONFIG] %d sensor(s) loaded.\n", i);
-  }
+  
 
   Serial.println("[CONFIG] Configuration loaded.");
   return true;
 }
+
 
 bool ConfigManager::save()
 {
@@ -142,7 +151,7 @@ bool ConfigManager::save()
   JsonArray arr = doc.createNestedArray("sensors");
   for (int i = 0; i < MAX_SENSORS; i++)
   {
-    if (sensors[i].name == "") continue;
+//    if (sensors[i].name == "") continue;
 
     Serial.printf("[CONFIG] Saving sensor %d: %s (ID: %d)", i, sensors[i].name.c_str(), sensors[i].homeeID);
     Serial.printf(", Type: %s, Address: 0x%02X", sensors[i].type.c_str(), sensors[i].address);
@@ -161,6 +170,12 @@ bool ConfigManager::save()
     s["signal2"]  = sensors[i].signal2;
     s["signal3"]  = sensors[i].signal3;
     s["signal4"]  = sensors[i].signal4;
+
+    // Save new mode configuration
+    s["toggle1"] = sensors[i].toggle1; 
+    s["toggle2"] = sensors[i].toggle2;
+    s["toggle3"] = sensors[i].toggle3; 
+    s["toggle4"] = sensors[i].toggle4; 
     
     // Save delay configuration - handle NaN values properly
     if (!isnan(sensors[i].delay1)) {

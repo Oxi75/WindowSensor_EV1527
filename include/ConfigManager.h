@@ -18,6 +18,11 @@ struct SensorConfig
   int32_t signal2 = -1;     // Push Button 2 / Close
   int32_t signal3 = -1;     // Push Button 3 / Alarm
   int32_t signal4 = -1;     // Push Button 4 / Battery
+
+  bool toggle1 = true; // Toggle for signal1 (true = toggle, false = re-trigger)
+  bool toggle2 = true; // Toggle for signal2 (true = toggle, false = re-trigger)
+  bool toggle3 = true; // Toggle for signal2 (true = toggle, false = re-trigger)
+  bool toggle4 = true; // Toggle for signal2 (true = toggle, false = re-trigger)
   
   // Auto-release delays in seconds (double to support fractional seconds)
   double delay1 = NAN;      // Delay for signal1 (NaN = no auto-release)
