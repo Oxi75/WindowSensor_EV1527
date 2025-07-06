@@ -155,8 +155,11 @@ bool ConfigManager::save()
 
     Serial.printf("[CONFIG] Saving sensor %d: %s (ID: %d)", i, sensors[i].name.c_str(), sensors[i].homeeID);
     Serial.printf(", Type: %s, Address: 0x%02X", sensors[i].type.c_str(), sensors[i].address);
-    Serial.printf(",  Signals - 1: %d, 2: %d, 3: %d, 4: %d\n",
-                   sensors[i].signal1, sensors[i].signal2, sensors[i].signal3, sensors[i].signal4);
+    Serial.printf(",  Signal 1: %d / %.0f ms / %d,    2: %d / %.0f ms / %d,    3: %d / %.0f ms / %d,    4: %d / %.0f ms / %d\n",
+                   sensors[i].signal1, sensors[i].delay1, sensors[i].toggle1 ? 1 : 0,
+                   sensors[i].signal2, sensors[i].delay2, sensors[i].toggle2 ? 1 : 0,
+                   sensors[i].signal3, sensors[i].delay3, sensors[i].toggle3 ? 1 : 0,
+                   sensors[i].signal4, sensors[i].delay4, sensors[i].toggle4 ? 1 : 0);
     
     JsonObject s = arr.createNestedObject();
     s["active"]   = sensors[i].active;

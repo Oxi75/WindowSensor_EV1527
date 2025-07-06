@@ -534,7 +534,15 @@ void Receiver_check(bool HomeeEnabled)
 
       if (snsValue == config.sensors[sns].signal1)
       {
-        config.RTData[sns].signal1_val = 1.0;   //switch to on / pressed / high state
+        if ((config.RTData[sns].OCSensor) || (!config.RTData[sns].OCSensor && !config.sensors[sns].toggle1))  //OC-Sensor supports only set to 1.0; Remote-Buttons without toggle support re-trigger
+        {
+          config.RTData[sns].signal1_val = 1.0;   //switch to on / pressed / high state
+        }
+        else  //Remote-Buttons with toggle will invert the value
+        {
+          config.RTData[sns].signal1_val = (config.RTData[sns].signal1_val == 0.0) ? 1.0 : 0.0;   //invert the value of signal1
+        }
+
         config.RTData[sns].signal1 = true;      //signalizes that signal1 hast been changed
         config.RTData[sns].signal1_TS = now;    //update timestamp for signal1
       }
@@ -548,7 +556,8 @@ void Receiver_check(bool HomeeEnabled)
         }
         else
         {
-          config.RTData[sns].signal2_val = 1.0;  //switch to on / pressed / high state
+          if (config.sensors[sns].toggle2) config.RTData[sns].signal2_val = (config.RTData[sns].signal2_val == 0.0) ? 1.0 : 0.0;   //invert the value of signal2
+          else config.RTData[sns].signal2_val = 1.0; // Remote-Buttons without toggle support will set signal2 to 1.0
           config.RTData[sns].signal2 = true;     //signalizes that signal2 has been changed
         }
         config.RTData[sns].signal2_TS = now;    //update timestamp for signal2
@@ -556,15 +565,28 @@ void Receiver_check(bool HomeeEnabled)
 
       if ((validSignal) && (snsValue == config.sensors[sns].signal3))
       {
-        config.RTData[sns].signal3_val = 1.0;  //switch to on / pressed / high state
-        config.RTData[sns].signal3 = true;     // signalizes that signal3 has been changed
-        config.RTData[sns].signal3_TS = now;   //update timestamp for signal3
+        if ((config.RTData[sns].OCSensor) || (!config.RTData[sns].OCSensor && !config.sensors[sns].toggle3))  //OC-Sensor supports only set to 1.0; Remote-Buttons without toggle support re-trigger
+        {
+          config.RTData[sns].signal3_val = 1.0;   //switch to on / pressed / high state
+        }
+        else  //Remote-Buttons with toggle will invert the value
+        {
+          config.RTData[sns].signal3_val = (config.RTData[sns].signal3_val == 0.0) ? 1.0 : 0.0;   //invert the value of signal1
+        }
+
+        config.RTData[sns].signal3 = true;      //signalizes that signal1 hast been changed
+        config.RTData[sns].signal3_TS = now;    //update timestamp for signal1
       }
 
       if ((validSignal) && (snsValue == config.sensors[sns].signal4))
       {
         if (config.RTData[sns].OCSensor) config.RTData[sns].signal4_val = 10; // signalizes a low battery state
-        else config.RTData[sns].signal4_val = 1.0;                            // switch to on / pressed / high state
+        else 
+        {
+          if (!config.sensors[sns].toggle4) config.RTData[sns].signal4_val = 1.0;               // switch to on / pressed / high state
+          else  config.RTData[sns].signal4_val = (config.RTData[sns].signal4_val == 0.0) ? 1.0 : 0.0;   //invert the value of signal1
+        }
+
         config.RTData[sns].signal4 = true;                                    // signalizes that signal4 hast been changed
         config.RTData[sns].signal4_TS = now;    //update timestamp for signal4
       }
@@ -661,6 +683,10 @@ server.on("/config", HTTP_GET, [](AsyncWebServerRequest* req) {
     s["delay2"] = config.sensors[i].delay2;
     s["delay3"] = config.sensors[i].delay3;
     s["delay4"] = config.sensors[i].delay4;
+    s["toggle1"] = config.sensors[i].toggle1;
+    s["toggle2"] = config.sensors[i].toggle2;
+    s["toggle3"] = config.sensors[i].toggle3;
+    s["toggle4"] = config.sensors[i].toggle4;    
   }
 
   String out;
@@ -716,9 +742,9 @@ server.on("/config", HTTP_POST,
       }
 
       // Debug: Print received JSON
-//      Serial.println("[CONFIG] Received JSON:");
-//      serializeJsonPretty(doc, Serial);
-//      Serial.println();
+      Serial.println("[CONFIG] Received JSON:");
+      serializeJsonPretty(doc, Serial);
+      Serial.println();
 
       // System configuration
       config.cfgInSTA = doc["system"]["cfgInSTA"] | false;
@@ -745,8 +771,10 @@ server.on("/config", HTTP_POST,
       uint16_t usedIDs[32] = {0};
       int valid = 0;
 
-      for (int i = 0; i < arr.size() && i < MAX_SENSORS; i++) {
+      for (int i = 0; i < arr.size() && i < MAX_SENSORS; i++)
+      {
         JsonObject s = arr[i];
+        bool deactivate = false;
         
         // Get and validate name
         const char* namePtr = s["name"].as<const char*>();
@@ -757,14 +785,14 @@ server.on("/config", HTTP_POST,
         }
         if (!namePtr || name == "") {
           Serial.printf("[WARN] Sensor %d has invalid name, skipping.\n", i);
-          continue;
+          deactivate = true;
         }
 
         // Get and validate homeeID
         uint16_t id = s["homeeID"] | 0;
         if (id == 0) {
           Serial.printf("[WARN] Sensor %d has invalid ID, skipping.\n", i);
-          continue;
+          deactivate = true;
         }
 
         // Check for duplicate IDs
@@ -774,13 +802,14 @@ server.on("/config", HTTP_POST,
         }
         if (duplicate) {
           Serial.printf("[WARN] Duplicate homee-ID (%d), sensor %d skipped.\n", id, i);
-          continue;
+          deactivate = true;
         }
         usedIDs[valid++] = id;
 
         // Configure sensor
         auto& sens = config.sensors[i];
         sens.active = s["active"] | true;
+        sens.active = sens.active && !deactivate; // Deactivate if any validation failed
         sens.name = name;
         sens.homeeID = id;
         sens.type = s["type"].as<String>();
@@ -793,6 +822,12 @@ server.on("/config", HTTP_POST,
         sens.signal2 = s["signal2"] | 0;
         sens.signal3 = s["signal3"] | 0;
         sens.signal4 = s["signal4"] | 0;
+
+        // toggle configuration
+        sens.toggle1 = s["toggle1"] | false;
+        sens.toggle2 = s["toggle2"] | false;
+        sens.toggle3 = s["toggle3"] | false;
+        sens.toggle4 = s["toggle4"] | false;        
         
         // FIXED: Delay handling - properly handle null/NaN values
         if (s.containsKey("delay1") && !s["delay1"].isNull()) {
@@ -842,6 +877,8 @@ server.on("/config", HTTP_POST,
                       sens.signal1, sens.signal2, sens.signal3, sens.signal4);
         Serial.printf("  Delays: %.1f, %.1f, %.1f, %.1f\n", 
                       sens.delay1, sens.delay2, sens.delay3, sens.delay4);
+        Serial.printf("  Toggles: %d, %d, %d, %d\n", 
+                      sens.toggle1, sens.toggle2, sens.toggle3, sens.toggle4);
       }
 
       // Check if at least one sensor is active
@@ -1076,8 +1113,22 @@ void setup()
     config.sensors[0].homeeID = 1;
     config.sensors[0].type = "OneButton Remote";
     config.sensors[0].address = 0x0;
+    config.sensors[0].signal1 = 0;
+    config.sensors[0].signal2 = 0;
+    config.sensors[0].signal3 = 0;
+    config.sensors[0].signal4 = 0;
+    config.sensors[0].delay1 = 0;
+    config.sensors[0].delay2 = 0;
+    config.sensors[0].delay3 = 0;
+    config.sensors[0].delay4 = 0;
+    config.sensors[0].toggle1 = true;
+    config.sensors[0].toggle2 = true;
+    config.sensors[0].toggle3 = true;
+    config.sensors[0].toggle4 = true;
     config.save();
   }
+
+  Serial.println("hallo");
 
   startWiFi();
 

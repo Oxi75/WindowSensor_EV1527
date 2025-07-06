@@ -72,6 +72,10 @@
       margin: 0;
       flex: 1;
     }
+    .signal-inputs select {
+      width: auto;
+      flex: 1;
+    }
     .hidden {
       display: none;
     }
@@ -144,6 +148,14 @@
     }
     .btn-orange:hover, button[onclick*="restart"]:hover {
       background-color: #e8590c;
+    }
+    
+    .btn-gray {
+      background-color: #6c757d;
+      color: white;
+    }
+    .btn-gray:hover {
+      background-color: #545b62;
     }
     
     button:disabled {
@@ -462,40 +474,40 @@ const sensorTypeConfigs = {
   "OpenClose": {
     backendType: "OpenClose Sensor",
     signals: [
-      { name: "Open Signal", key: "signal1", delayKey: "delay1", needsDelay: false },
-      { name: "Close Signal", key: "signal2", delayKey: "delay2", needsDelay: false },
-      { name: "Alarm Signal", key: "signal3", delayKey: "delay3", needsDelay: true },
-      { name: "Battery Signal", key: "signal4", delayKey: "delay4", needsDelay: true }
+      { name: "Open Signal", key: "signal1", delayKey: "delay1", toggleKey: "toggle1", needsDelay: false, needsToggle: false },
+      { name: "Close Signal", key: "signal2", delayKey: "delay2", toggleKey: "toggle2", needsDelay: false, needsToggle: false },
+      { name: "Alarm Signal", key: "signal3", delayKey: "delay3", toggleKey: "toggle3", needsDelay: true, needsToggle: false },
+      { name: "Battery Signal", key: "signal4", delayKey: "delay4", toggleKey: "toggle4", needsDelay: true, needsToggle: false }
     ]
   },
   "OneButton": {
     backendType: "OneButton Remote",
     signals: [
-      { name: "Button Signal", key: "signal1", delayKey: "delay1", needsDelay: true }
+      { name: "Button Signal", key: "signal1", delayKey: "delay1", toggleKey: "toggle1", needsDelay: true, needsToggle: true }
     ]
   },
   "TwoButton": {
     backendType: "TwoButton Remote",
     signals: [
-      { name: "Button 1 Signal", key: "signal1", delayKey: "delay1", needsDelay: true },
-      { name: "Button 2 Signal", key: "signal2", delayKey: "delay2", needsDelay: true }
+      { name: "Button 1 Signal", key: "signal1", delayKey: "delay1", toggleKey: "toggle1", needsDelay: true, needsToggle: true },
+      { name: "Button 2 Signal", key: "signal2", delayKey: "delay2", toggleKey: "toggle2", needsDelay: true, needsToggle: true }
     ]
   },
   "ThreeButton": {
     backendType: "ThreeButton Remote",
     signals: [
-      { name: "Button 1 Signal", key: "signal1", delayKey: "delay1", needsDelay: true },
-      { name: "Button 2 Signal", key: "signal2", delayKey: "delay2", needsDelay: true },
-      { name: "Button 3 Signal", key: "signal3", delayKey: "delay3", needsDelay: true }
+      { name: "Button 1 Signal", key: "signal1", delayKey: "delay1", toggleKey: "toggle1", needsDelay: true, needsToggle: true },
+      { name: "Button 2 Signal", key: "signal2", delayKey: "delay2", toggleKey: "toggle2", needsDelay: true, needsToggle: true },
+      { name: "Button 3 Signal", key: "signal3", delayKey: "delay3", toggleKey: "toggle3", needsDelay: true, needsToggle: true }
     ]
   },
   "FourButton": {
     backendType: "FourButton Remote",
     signals: [
-      { name: "Button 1 Signal", key: "signal1", delayKey: "delay1", needsDelay: true },
-      { name: "Button 2 Signal", key: "signal2", delayKey: "delay2", needsDelay: true },
-      { name: "Button 3 Signal", key: "signal3", delayKey: "delay3", needsDelay: true },
-      { name: "Button 4 Signal", key: "signal4", delayKey: "delay4", needsDelay: true }
+      { name: "Button 1 Signal", key: "signal1", delayKey: "delay1", toggleKey: "toggle1", needsDelay: true, needsToggle: true },
+      { name: "Button 2 Signal", key: "signal2", delayKey: "delay2", toggleKey: "toggle2", needsDelay: true, needsToggle: true },
+      { name: "Button 3 Signal", key: "signal3", delayKey: "delay3", toggleKey: "toggle3", needsDelay: true, needsToggle: true },
+      { name: "Button 4 Signal", key: "signal4", delayKey: "delay4", toggleKey: "toggle4", needsDelay: true, needsToggle: true }
     ]
   }
 };
@@ -509,7 +521,8 @@ function getTypeKeyFromBackendType(backendType) {
   return "OpenClose";
 }
 
-function renderSensors(sensors) {
+function renderSensors(sensors) 
+{
   list.innerHTML = "";
   if (!sensors || sensors.length === 0) {
     sensors = [emptySensor()];
@@ -519,41 +532,55 @@ function renderSensors(sensors) {
     let row = document.createElement("div");
     row.className = "sensor";
     row.dataset.index = i;
-    
+
     const frontendType = getTypeKeyFromBackendType(s.type);
-    
+
     let signalGroupsHTML = "";
     Object.keys(sensorTypeConfigs).forEach(type => {
       const config = sensorTypeConfigs[type];
       const isVisible = frontendType === type;
-      
+
       signalGroupsHTML += `<div class="signal-type-group ${isVisible ? '' : 'hidden'}" data-type="${type}">`;
-      
+
       config.signals.forEach(signal => {
-        const signalValue = s[signal.key] ?? getDefaultSignalValue(type, signal.key);
+        // Nur für sichtbare Gruppe echte Werte verwenden, sonst leer lassen
+        const signalValue = isVisible ? (s[signal.key] !== undefined ? s[signal.key] : "") : "";
+
         let delayValue = "";
-        if (s[signal.delayKey] !== undefined && s[signal.delayKey] !== null && !isNaN(s[signal.delayKey])) {
+        if (isVisible && s[signal.delayKey] !== undefined && s[signal.delayKey] !== null && !isNaN(s[signal.delayKey])) {
           delayValue = s[signal.delayKey];
         }
-        
-        const delayHTML = signal.needsDelay ? 
-          `<label>Delay (s): <input type="number" class="${signal.delayKey}" value="${delayValue}" min="0" step="0.1" placeholder="No delay"></label>` : 
-          `<input type="hidden" class="${signal.delayKey}" value="">`;
-        
+
+        const delayHTML = signal.needsDelay
+          ? `<label>Delay (s): <input type="number" class="${signal.delayKey}" value="${delayValue}" min="0" step="0.1" placeholder="No delay"></label>`
+          : `<input type="hidden" class="${signal.delayKey}" value="">`;
+
+        const toggleValue = isVisible ? (s[signal.toggleKey] === true || s[signal.toggleKey] === "true") : false;
+
+        const toggleHTML = signal.needsToggle
+          ? `<label>Mode:
+              <select class="${signal.toggleKey}">
+                <option value="false" ${!toggleValue ? "selected" : ""}>re-trigger</option>
+                <option value="true" ${toggleValue ? "selected" : ""}>toggle</option>
+              </select>
+            </label>`
+          : `<input type="hidden" class="${signal.toggleKey}" value="false">`;
+
         signalGroupsHTML += `
           <div class="signal-group">
             <h4>${signal.name}</h4>
             <div class="signal-inputs">
               <label>Value: <input type="number" class="${signal.key}" value="${signalValue}"></label>
               ${delayHTML}
+              ${toggleHTML}
             </div>
           </div>
         `;
       });
-      
+
       signalGroupsHTML += "</div>";
     });
-    
+
     row.innerHTML = `
       <b>Sensor ${i + 1}</b><br>
       <label style="display: inline-flex; align-items: center;">
@@ -572,9 +599,9 @@ function renderSensors(sensors) {
       <label>Name: <input type="text" class="name" value="${s.name || ""}"></label>
       <label>homee ID: <input type="number" class="homeeID" min="1" max="65535" value="${s.homeeID || ""}"></label>
       <label>Address (hex): <input type="text" class="address" value="${(s.address ?? 0).toString(16)}" pattern="[0-9a-fA-F]{1,8}" title="Hex value"></label>
-      
+
       ${signalGroupsHTML}
-      
+
       <button onclick="addSensor(${i})" class="btn-gray">+</button>
       ${i > 0 ? `<button onclick="removeSensor(${i})" class="btn-gray">-</button>` : ""}
       <hr>
@@ -582,6 +609,7 @@ function renderSensors(sensors) {
     list.appendChild(row);
   });
 }
+
 
 function updateSensorTypeVisibility(sensorIndex) {
   const sensorRow = document.querySelector(`[data-index="${sensorIndex}"]`);
@@ -598,7 +626,7 @@ function updateSensorTypeVisibility(sensorIndex) {
   }
 }
 
-// FIXED: Function to get proper default values based on sensor type and signal
+// Function to get proper default values based on sensor type and signal
 function getDefaultSignalValue(sensorType, signalKey) {
   // For OpenClose sensors
   if (sensorType === "OpenClose") {
@@ -619,7 +647,7 @@ function getDefaultSignalValue(sensorType, signalKey) {
   return 0; // Unused signals default to 0
 }
 
-// FIXED: Create proper empty sensor based on type
+// Create proper empty sensor based on type
 function emptySensor(type = "OpenClose") {
   const config = sensorTypeConfigs[type];
   const sensor = {
@@ -635,59 +663,78 @@ function emptySensor(type = "OpenClose") {
     delay1: null,
     delay2: null,
     delay3: null,
-    delay4: null
+    delay4: null,
+    toggle1: false,
+    toggle2: false,
+    toggle3: false,
+    toggle4: false
   };
   
   console.log("Created empty sensor:", sensor);
   return sensor;
 }
 
-function collectSensors() {
+
+
+function collectSensors()
+{
   const sensors = [];
   document.querySelectorAll(".sensor").forEach(s => {
     const frontendType = s.querySelector(".type").value;
     const backendType = sensorTypeConfigs[frontendType]?.backendType || "OpenClose Sensor";
-    
     const addressStr = s.querySelector(".address").value.trim();
     const addressValue = addressStr ? parseInt(addressStr, 16) : 0;
     
-    // Start with proper default values for this sensor type
     const sensorData = {
       active: s.querySelector(".active").checked,
       name: s.querySelector(".name").value.trim(),
       homeeID: parseInt(s.querySelector(".homeeID").value) || 0,
       type: backendType,
-      address: addressValue,
-      signal1: getDefaultSignalValue(frontendType, "signal1"),
-      signal2: getDefaultSignalValue(frontendType, "signal2"),
-      signal3: getDefaultSignalValue(frontendType, "signal3"),
-      signal4: getDefaultSignalValue(frontendType, "signal4"),
-      delay1: null,
-      delay2: null,
-      delay3: null,
-      delay4: null
+      address: addressValue
     };
+
+    // Nur aus der aktuell sichtbaren Signal-Gruppe lesen
+    const activeGroup = s.querySelector('.signal-type-group:not(.hidden)');
     
-    // Update with actual input values from the visible signal group
-    const config = sensorTypeConfigs[frontendType];
-    if (config) {
-      config.signals.forEach(signal => {
-        const signalInput = s.querySelector(`.${signal.key}`);
-        if (signalInput) {
-          const value = parseInt(signalInput.value);
-          if (!isNaN(value)) {
-            sensorData[signal.key] = value;
+    if (activeGroup) {
+      const config = sensorTypeConfigs[frontendType];
+      if (config) {
+        config.signals.forEach(signal => {
+          // Signal value - aus der aktiven Gruppe lesen
+          const signalInput = activeGroup.querySelector(`.${signal.key}`);
+          if (signalInput) {
+            const value = signalInput.value.trim();
+            sensorData[signal.key] = value !== "" ? parseInt(value) : 0;
+          } else {
+            sensorData[signal.key] = 0;
           }
-        }
-        
-        const delayInput = s.querySelector(`.${signal.delayKey}`);
-        if (delayInput) {
-          const delay = delayInput.value.trim();
-          if (delay !== "" && delay !== "NaN" && !isNaN(parseFloat(delay))) {
-            sensorData[signal.delayKey] = parseFloat(delay);
+          
+          // Delay value - aus der aktiven Gruppe lesen
+          const delayInput = activeGroup.querySelector(`.${signal.delayKey}`);
+          if (delayInput) {
+            const delay = delayInput.value.trim();
+            if (delay !== "" && delay !== "NaN" && !isNaN(parseFloat(delay))) {
+              sensorData[signal.delayKey] = parseFloat(delay);
+            } else {
+              sensorData[signal.delayKey] = null;
+            }
+          } else {
+            sensorData[signal.delayKey] = null;
           }
-        }
-      });
+          
+          // Toggle value - aus der aktiven Gruppe lesen
+          const toggleInput = activeGroup.querySelector(`.${signal.toggleKey}`);
+          if (toggleInput) {
+            if (signal.needsToggle) {
+              sensorData[signal.toggleKey] = toggleInput.value === "true";
+            } else {
+              sensorData[signal.toggleKey] = false;
+            }
+          } else {
+            sensorData[signal.toggleKey] = false;
+          }
+        });
+      }
     }
     
     console.log(`Collected sensor ${sensors.length + 1}:`, sensorData);
@@ -696,6 +743,7 @@ function collectSensors() {
   return sensors;
 }
 
+
 function addSensor(index) {
   let sensors = collectSensors();
   // Use the same type as the sensor we're adding after
@@ -703,7 +751,7 @@ function addSensor(index) {
   sensors.splice(index + 1, 0, emptySensor(currentSensorType));
   renderSensors(sensors);
   
-  // FIXED: Ensure visibility is updated for all sensors after render
+  // Ensure visibility is updated for all sensors after render
   setTimeout(() => {
     document.querySelectorAll('.sensor').forEach((sensorRow, idx) => {
       updateSensorTypeVisibility(idx);
