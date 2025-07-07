@@ -741,10 +741,10 @@ server.on("/config", HTTP_POST,
         return;
       }
 
-      // Debug: Print received JSON
-      Serial.println("[CONFIG] Received JSON:");
-      serializeJsonPretty(doc, Serial);
-      Serial.println();
+      // Debug: Print received JSON string
+      //Serial.println("[CONFIG] Received JSON:");
+      //serializeJsonPretty(doc, Serial);
+      //Serial.println();
 
       // System configuration
       config.cfgInSTA = doc["system"]["cfgInSTA"] | false;

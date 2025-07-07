@@ -29,7 +29,7 @@ bool ConfigManager::load()
   File f = LittleFS.open(CONFIG_FILE, "r");
   if (!f) return false;
 
-  DynamicJsonDocument doc(4096);
+  DynamicJsonDocument doc(16384);
   DeserializationError err = deserializeJson(doc, f);
   f.close();
   if (err) {
@@ -135,7 +135,7 @@ bool ConfigManager::load()
 
 bool ConfigManager::save()
 {
-  DynamicJsonDocument doc(4096);
+  DynamicJsonDocument doc(16384);
 
   Serial.println("[CONFIG] Saving configuration...\n");
 
