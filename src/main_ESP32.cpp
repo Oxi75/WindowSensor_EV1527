@@ -657,7 +657,7 @@ void webserver_setup()
   }
 
 server.on("/config", HTTP_GET, [](AsyncWebServerRequest* req) {
-  DynamicJsonDocument doc(4096);
+  DynamicJsonDocument doc(16384);
   doc["fw"] = FW_VERSION_STR;
   doc["system"]["cfgInSTA"] = config.cfgInSTA;
   doc["wifi"]["ssid"] = config.ssid;
