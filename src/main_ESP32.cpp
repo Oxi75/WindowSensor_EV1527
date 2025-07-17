@@ -38,7 +38,8 @@ String FW_VERSION_STR = String(FW_VERSION_ESP, 2);
 #define CANodeProfileOpenCloseSensor 2000
 #define CAAttributeTypeOpenClose 14
 #define CAAttributeTypeAlarm 108
-#define CAAttributeTypeBatteryLevel 8
+//#define CAAttributeTypeBatteryLevel 8
+#define CAAttributeTypeBatteryLowAlarm 69
 #define CAAttributeTypeOnOff 1
 #define CAAttributeTypeFirmwareRevision 44
 #define CAAttributeTypeBinaryInput 19
@@ -287,13 +288,13 @@ void homee_setup()
       n->AddAttributes(na);       //set attribute to node
 
       //Attribut Batterie
-      na = new nodeAttributes(CAAttributeTypeBatteryLevel);
-      na->setName("Battery Level");
+      na = new nodeAttributes(CAAttributeTypeBatteryLowAlarm);
+      na->setName("Battery Status");
       na->setId(AttrID_Sig4 | sns << 1); //unique ID for each sensor
-      na->setUnit("%");
-      na->setMinimumValue(0);
-      na->setMaximumValue(100); 
-      na->setCurrentValue(99);  //default value
+      na->setUnit("");
+      na->setMinimumValue(0);  //0 = Battery OK, 1 = Battery low
+      na->setMaximumValue(1); 
+      na->setCurrentValue(0);  //default value
       na->setEditable(false);
       na->setCallback(nullptr);
       n->AddAttributes(na);       //set attribute to node
@@ -580,15 +581,15 @@ void Receiver_check(bool HomeeEnabled)
 
       if ((validSignal) && (snsValue == config.sensors[sns].signal4))
       {
-        if (config.RTData[sns].OCSensor) config.RTData[sns].signal4_val = 10; // signalizes a low battery state
+        if (config.RTData[sns].OCSensor) config.RTData[sns].signal4_val = 1;                            // set low battery alarm
         else 
         {
-          if (!config.sensors[sns].toggle4) config.RTData[sns].signal4_val = 1.0;               // switch to on / pressed / high state
+          if (!config.sensors[sns].toggle4) config.RTData[sns].signal4_val = 1.0;                       // switch to on / pressed / high state
           else  config.RTData[sns].signal4_val = (config.RTData[sns].signal4_val == 0.0) ? 1.0 : 0.0;   //invert the value of signal1
         }
 
-        config.RTData[sns].signal4 = true;                                    // signalizes that signal4 hast been changed
-        config.RTData[sns].signal4_TS = now;    //update timestamp for signal4
+        config.RTData[sns].signal4 = true;              // signalizes that signal4 hast been changed
+        config.RTData[sns].signal4_TS = now;            //update timestamp for signal4
       }
     }
 
