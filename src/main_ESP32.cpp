@@ -44,12 +44,14 @@ String FW_VERSION_STR = String(FW_VERSION_ESP, 2);
 #define CAAttributeTypeFirmwareRevision 44
 #define CAAttributeTypeBinaryInput 19
 #define CAAttributeTypeButtonState 40
+#define CAAttributeTypeNone 0
 
-#define AttrID_FwRev      0b00100000  //one part of the Attribute ID of homee, the other one is the sensor number
-#define AttrID_Sig1       0b01000000  //one part of the Attribute ID of homee, the other one is the sensor number
-#define AttrID_Sig2       0b01100000  //one part of the Attribute ID of homee, the other one is the sensor number
-#define AttrID_Sig3       0b10000000  //one part of the Attribute ID of homee, the other one is the sensor number
-#define AttrID_Sig4       0b10100000  //one part of the Attribute ID of homee, the other one is the sensor number
+#define AttrID_SnsAddr    0b00100000  //one part of the Attribute ID of homee, the other one is the sensor number
+#define AttrID_FwRev      0b01000000  //one part of the Attribute ID of homee, the other one is the sensor number
+#define AttrID_Sig1       0b01100000  //one part of the Attribute ID of homee, the other one is the sensor number
+#define AttrID_Sig2       0b10000000  //one part of the Attribute ID of homee, the other one is the sensor number
+#define AttrID_Sig3       0b10100000  //one part of the Attribute ID of homee, the other one is the sensor number
+#define AttrID_Sig4       0b11000000  //one part of the Attribute ID of homee, the other one is the sensor number
 
 
 const char* AP_SSID = "EV1527 for homee";
@@ -248,21 +250,33 @@ void homee_setup()
 
     //all checks done, now new add the new sensor with all its attributes to homee    
     node *n;
-    nodeAttributes *na;
-    na = new nodeAttributes(CAAttributeTypeFirmwareRevision); 
-    na->setName("Firmware Version");
-    na->setId(AttrID_FwRev | sns); //unique ID for each sensor
-    na->setUnit("");  
-    na->setMinimumValue(0.0);
-    na->setMaximumValue(1000.0); 
-    na->setCurrentValue(FW_VERSION_ESP);
-    na->setEditable(false);
-    na->setCallback(nullptr);
+    nodeAttributes *na, *naAddr, *naFW;
+
+    naAddr = new nodeAttributes(CAAttributeTypeNone);  //
+    naAddr->setName("Sensor Address");
+    naAddr->setId(AttrID_SnsAddr | sns);
+    naAddr->setUnit("0x" + String(config.sensors[sns].address, HEX));  //set unit to the address in hex format
+    naAddr->setMinimumValue(0);
+    naAddr->setMaximumValue(999999999999); 
+    naAddr->setCurrentValue(config.sensors[sns].address);
+    naAddr->setEditable(false);
+    naAddr->setCallback(nullptr);
+
+    naFW = new nodeAttributes(CAAttributeTypeFirmwareRevision); 
+    naFW->setName("Firmware Version");
+    naFW->setId(AttrID_FwRev | sns); //unique ID for each sensor
+    naFW->setUnit("");  
+    naFW->setMinimumValue(0.0);
+    naFW->setMaximumValue(1000.0); 
+    naFW->setCurrentValue(FW_VERSION_ESP);
+    naFW->setEditable(false);
+    naFW->setCallback(nullptr);
 
     if (config.RTData[sns].OCSensor)
     {
       n = new node(config.sensors[sns].homeeID, CANodeProfileOpenCloseSensor, config.sensors[sns].name);     
-      n->AddAttributes(na);       //set attribute Firmware to node
+      n->AddAttributes(naAddr);     //set attribute Sensor Address to node
+      n->AddAttributes(naFW);       //set attribute Firmware to node
 
       //Attribut Status
       na = new nodeAttributes(CAAttributeTypeOpenClose);  //open / closed state
@@ -308,7 +322,8 @@ void homee_setup()
       else if (config.RTData[sns].btnCnt == 4) vhihProfile = CANodeProfileFourButtonRemote;
 
       n = new node(config.sensors[sns].homeeID, vhihProfile, config.sensors[sns].name);
-      n->AddAttributes(na);       //set attribute Firmware to node
+      n->AddAttributes(naAddr);     //set attribute Sensor Address to node
+      n->AddAttributes(naFW);       //set attribute Firmware to node
 
 
       //Attribut for first Button
