@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>EV1527 for homee - configuration</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 20px;
+      max-width: 900px;
+    }
+    .section {
+      border: 1px solid #ccc;
+      padding: 15px;
+      margin-bottom: 20px;
+      border-radius: 8px;
+    }
+    .section:nth-of-type(1) {
+      background: #f3f8ff;
+    }
+    .section:nth-of-type(2) {
+      background: #f9f3ff;
+    }
+    .section:nth-of-type(3) {
+      background: #f3fff4;
+    }
+    .section:nth-of-type(4) {
+      background: #fffaf3;
+    }
+    .section h2 {
+      margin-top: 0;
+    }
+    label {
+      display: block;
+      margin: 5px 0;
+    }
+    input, select {
+      padding: 5px;
+      margin-top: 2px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    .sensor {
+      margin-bottom: 10px;
+      border-bottom: 1px dashed #ccc;
+      padding-bottom: 10px;
+    }
+    .timestamp {
+      font-size: 0.9em;
+      color: #666;
+    }
+    .signal-group {
+      margin: 10px 0;
+      padding: 10px;
+      background: #f0f0f0;
+      border-radius: 5px;
+    }
+    .signal-group h4 {
+      margin: 0 0 10px 0;
+      font-size: 1em;
+    }
+    .signal-inputs {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+    .signal-inputs input {
+      width: auto;
+      flex: 1;
+    }
+    .signal-inputs label {
+      margin: 0;
+      flex: 1;
+    }
+    .signal-inputs select {
+      width: auto;
+      flex: 1;
+    }
+    .hidden {
+      display: none;
+    }
+    .error {
+      color: red;
+      font-weight: bold;
+    }
+    .success {
+      color: green;
+      font-weight: bold;
+    }
+    .checkbox-row {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5em;
+      margin-bottom: 10px;
+    }
+    .checkbox-row input[type="checkbox"] {
+      margin: 0;
+    }
+    .checkbox-row label {
+      margin: 0;
+      white-space: nowrap;
+    }
+    
+    /* Unified button styling */
+    button, .button {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      margin: 2px;
+      text-decoration: none;
+      display: inline-block;
+      text-align: center;
+    }
+    
+
+    /* Button colors */
+    .btn-blue, 
+    button[onclick*="save"], 
+    button[onclick*="Update"],
+    button[onclick*="uploadFirmware"],
+    button[onclick*="uploadWebInterfaceFile"],
+    button[onclick*="uploadConfig"] {
+      background-color: #007bff;
+      color: white;
+    }
+    .btn-blue:hover, 
+    button[onclick*="save"]:hover, 
+    button[onclick*="Update"]:hover,
+    button[onclick*="uploadFirmware"]:hover,
+    button[onclick*="uploadWebInterfaceFile"]:hover,
+    button[onclick*="uploadConfig"]:hover {
+      background-color: #0056b3;
+    }
+    
+    .btn-green, .download-btn {
+      background-color: #28a745;
+      color: white;
+    }
+    .btn-green:hover, .download-btn:hover {
+      background-color: #1e7e34;
+    }
+    
+    .btn-orange, button[onclick*="restart"] {
+      background-color: #fd7e14;
+      color: white;
+    }
+    .btn-orange:hover, button[onclick*="restart"]:hover {
+      background-color: #e8590c;
+    }
+    
+    .btn-gray {
+      background-color: #6c757d;
+      color: white;
+    }
+    .btn-gray:hover {
+      background-color: #545b62;
+    }
+    
+    button:disabled {
+      background-color: #6c757d !important;
+      cursor: not-allowed;
+    }
+    
+    /* Status styling */
+    .status-div {
+      margin-top: 10px;
+      padding: 10px;
+      border-radius: 5px;
+    }
+    
+    .status-div .success {
+      background-color: #d4edda;
+      border: 1px solid #c3e6cb;
+      color: #155724;
+    }
+    
+    .status-div .error {
+      background-color: #f8d7da;
+      border: 1px solid #f5c6cb;
+      color: #721c24;
+    }
+    
+    .form-section {
+      margin-bottom: 15px;
+    }
+    
+    .form-section input[type="file"] {
+      margin-bottom: 10px;
+    }
+    
+    .subsection {
+      margin: 20px 0;
+      padding: 15px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      background-color: rgba(255, 255, 255, 0.5);
+    }
+    
+    .subsection h3 {
+      margin-top: 0;
+      margin-bottom: 15px;
+    }
+  </style>
+</head>
+<body>
+  <h1>EV1527 for homee - configuration</h1>
+
+  <div class="section">
+    <h2>System</h2>
+    <p><b>Firmware:</b> <span id="fwver">?</span></p>
+
+    <div class="checkbox-row">
+      <input type="checkbox" id="cfgInSTA">
+      <label for="cfgInSTA">Enable configuration in standard mode</label>
+    </div>
+    <div>
+      <button onclick="restartDevice()" class="btn-orange">Restart Device</button>
+    </div>      
+    
+    <div class="subsection">
+      <h3>OTA Firmware Update</h3>
+      <div class="form-section" id="firmwareForm">
+        <input type="file" name="update" id="updateFile" accept=".bin">
+        <button type="button" onclick="uploadFirmware()" class="btn-blue">Update Firmware</button>
+      </div>
+      <div id="updateStatus" class="status-div"></div>
+    </div>
+    
+    <div class="subsection">
+      <h3>Web Interface Update</h3>
+      <div class="form-section">
+        <p>Download current web interface files:</p>
+        <a href="/config.html" download class="button download-btn btn-green">Download config.html</a>
+        <a href="/index.html" download class="button download-btn btn-green">Download index.html</a>
+      </div>
+      <div class="form-section" id="webInterfaceForm">
+        <p>Upload web interface file:</p>
+        <input type="file" name="webfile" id="webInterfaceFile" accept=".html">
+        <button type="button" onclick="uploadWebInterfaceFile()" class="btn-blue">Upload Web Interface File</button>
+      </div>
+      <div id="webInterfaceStatus" class="status-div"></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>WiFi Configuration</h2>
+    <label>SSID: <input type="text" id="ssid"></label>
+    <label>Password: <input type="password" id="pw"></label>
+    <label>Gateway IP: <input type="text" id="gw"></label>
+    <label>SubNet Mask: <input type="text" id="mask"></label>
+    <label>Client IP: <input type="text" id="ip"></label>
+  </div>
+
+  <div class="section">
+    <h2>Last Received Signal</h2>
+    <label>Sensor Address (hex): <input type="text" id="sensorAddress" readonly></label>
+    <label>Value: <input type="text" id="sensorData" readonly></label>
+    <label>Binary: <input type="text" id="binary" readonly></label>
+    <p class="timestamp" id="timestamp"></p>
+  </div>
+
+  <div class="section">
+    <h2>Sensor Configuration</h2>
+    <div id="sensorList"></div>
+    <button onclick="saveConfig()" class="btn-blue">💾 Save Configuration</button>
+    <hr>
+    <a href="/config.json" download class="button download-btn btn-green">Download Configuration</a><br><br>
+    <input type="file" id="cfgfile" accept=".json">
+    <button onclick="uploadConfig()" class="btn-blue">Upload Configuration File</button>
+  </div>
+
+
+<script>
+function restartDevice() {
+  if (confirm('Device will restart. Continue?')) {
+    fetch('/restart', { method: 'POST' })
+      .then(() => alert('Device is restarting...'))
+      .catch(() => alert('Restart command sent'));
+  }
+}
+
+function uploadFirmware() {
+  const fileInput = document.getElementById("updateFile");
+  const file = fileInput.files[0];
+  const statusDiv = document.getElementById("updateStatus");
+  
+  if (!file) {
+    statusDiv.innerHTML = '<div class="error">No file selected</div>';
+    return;
+  }
+  
+  if (!file.name.endsWith('.bin')) {
+    statusDiv.innerHTML = '<div class="error">Please select a .bin firmware file</div>';
+    return;
+  }
+  
+  const formData = new FormData();
+  formData.append('update', file);
+  
+  statusDiv.innerHTML = `
+    <div>Uploading firmware...</div>
+    <div style="width: 100%; background-color: #f0f0f0; border-radius: 3px; margin: 10px 0;">
+      <div id="progressBar" style="width: 0%; height: 20px; background-color: #4CAF50; border-radius: 3px; transition: width 0.3s;"></div>
+    </div>
+    <div id="progressText">0%</div>
+  `;
+  
+  const xhr = new XMLHttpRequest();
+  
+  xhr.upload.addEventListener('progress', function(e) {
+    if (e.lengthComputable) {
+      const percentComplete = (e.loaded / e.total) * 100;
+      const progressBar = document.getElementById('progressBar');
+      const progressText = document.getElementById('progressText');
+      
+      if (progressBar && progressText) {
+        progressBar.style.width = percentComplete + '%';
+        progressText.textContent = Math.round(percentComplete) + '%';
+      }
+    }
+  });
+  
+  xhr.addEventListener('load', function() {
+    if (xhr.status === 200) {
+      statusDiv.innerHTML = '<div class="success">Firmware uploaded successfully! Device is rebooting...</div>';
+      
+      let countdown = 10;
+      const countdownDiv = document.createElement('div');
+      countdownDiv.innerHTML = `<div>Device will be ready in ${countdown} seconds...</div>`;
+      statusDiv.appendChild(countdownDiv);
+      
+      const countdownInterval = setInterval(() => {
+        countdown--;
+        countdownDiv.innerHTML = `<div>Device will be ready in ${countdown} seconds...</div>`;
+        
+        if (countdown <= 0) {
+          clearInterval(countdownInterval);
+          countdownDiv.innerHTML = '<div class="success">Device should be ready now. You may need to refresh the page.</div>';
+        }
+      }, 1000);
+      
+    } else {
+      statusDiv.innerHTML = '<div class="error">Firmware upload failed. Please try again.</div>';
+    }
+  });
+  
+  xhr.addEventListener('error', function() {
+    statusDiv.innerHTML = '<div class="error">Upload failed: Network error</div>';
+  });
+  
+  xhr.addEventListener('timeout', function() {
+    statusDiv.innerHTML = '<div class="error">Upload failed: Timeout</div>';
+  });
+  
+  xhr.timeout = 300000;
+  
+  xhr.open('POST', '/update');
+  xhr.send(formData);
+}
+
+function uploadWebInterfaceFile() {
+  const fileInput = document.getElementById("webInterfaceFile");
+  const file = fileInput.files[0];
+  const statusDiv = document.getElementById("webInterfaceStatus");
+  
+  if (!file) {
+    statusDiv.innerHTML = '<div class="error">No file selected</div>';
+    return;
+  }
+  
+  if (!file.name.endsWith('.html')) {
+    statusDiv.innerHTML = '<div class="error">Please select an HTML file</div>';
+    return;
+  }
+  
+  const allowedFiles = ['config.html', 'index.html'];
+  if (!allowedFiles.includes(file.name)) {
+    statusDiv.innerHTML = '<div class="error">Only config.html and index.html files are allowed</div>';
+    return;
+  }
+  
+  const formData = new FormData();
+  formData.append('webfile', file);
+  
+  statusDiv.innerHTML = `
+    <div>Uploading ${file.name}...</div>
+    <div style="width: 100%; background-color: #f0f0f0; border-radius: 3px; margin: 10px 0;">
+      <div id="webProgressBar" style="width: 0%; height: 20px; background-color: #4CAF50; border-radius: 3px; transition: width 0.3s;"></div>
+    </div>
+    <div id="webProgressText">0%</div>
+  `;
+  
+  const xhr = new XMLHttpRequest();
+  
+  xhr.upload.addEventListener('progress', function(e) {
+    if (e.lengthComputable) {
+      const percentComplete = (e.loaded / e.total) * 100;
+      const progressBar = document.getElementById('webProgressBar');
+      const progressText = document.getElementById('webProgressText');
+      
+      if (progressBar && progressText) {
+        progressBar.style.width = percentComplete + '%';
+        progressText.textContent = Math.round(percentComplete) + '%';
+      }
+    }
+  });
+  
+  xhr.addEventListener('load', function() {
+    if (xhr.status === 200) {
+      statusDiv.innerHTML = `<div class="success">${file.name} uploaded successfully!</div>`;
+      fileInput.value = '';
+    } else {
+      statusDiv.innerHTML = `<div class="error">Upload failed: ${xhr.responseText || 'Unknown error'}</div>`;
+    }
+  });
+  
+  xhr.addEventListener('error', function() {
+    statusDiv.innerHTML = '<div class="error">Upload failed: Network error</div>';
+  });
+  
+  xhr.addEventListener('timeout', function() {
+    statusDiv.innerHTML = '<div class="error">Upload failed: Timeout</div>';
+  });
+  
+  xhr.timeout = 60000;
+  
+  xhr.open('POST', '/uploadweb');
+  xhr.send(formData);
+}
+
+function uploadConfig() {
+  const fileInput = document.getElementById("cfgfile");
+  const file = fileInput.files[0];
+  if (!file) return alert("No file selected");
+  
+  if (!file.name.endsWith('.json')) {
+    alert("Please select a JSON configuration file");
+    return;
+  }
+  
+  const reader = new FileReader();
+  reader.onload = function () {
+    try {
+      const configData = JSON.parse(reader.result);
+      
+      fetch("/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(configData)
+      }).then(res => {
+        if (res.ok) {
+          alert("Configuration uploaded successfully!");
+          location.reload();
+        } else {
+          return res.text().then(errorText => {
+            alert("Upload failed: " + errorText);
+          });
+        }
+      }).catch(err => {
+        alert("Upload failed: " + err.message);
+      });
+    } catch (e) {
+      alert("Invalid JSON file: " + e.message);
+    }
+  };
+  reader.readAsText(file);
+}
+
+let list = document.getElementById("sensorList");
+
+const sensorTypeConfigs = {
+  "OpenClose": {
+    backendType: "OpenClose Sensor",
+    signals: [
+      { name: "Open Signal", key: "signal1", delayKey: "delay1", toggleKey: "toggle1", needsDelay: false, needsToggle: false },
+      { name: "Close Signal", key: "signal2", delayKey: "delay2", toggleKey: "toggle2", needsDelay: false, needsToggle: false },
+      { name: "Alarm Signal", key: "signal3", delayKey: "delay3", toggleKey: "toggle3", needsDelay: true, needsToggle: false },
+      { name: "Battery Signal", key: "signal4", delayKey: "delay4", toggleKey: "toggle4", needsDelay: true, needsToggle: false }
+    ]
+  },
+  "OneButton": {
+    backendType: "OneButton Remote",
+    signals: [
+      { name: "Button Signal", key: "signal1", delayKey: "delay1", toggleKey: "toggle1", needsDelay: true, needsToggle: true }
+    ]
+  },
+  "TwoButton": {
+    backendType: "TwoButton Remote",
+    signals: [
+      { name: "Button 1 Signal", key: "signal1", delayKey: "delay1", toggleKey: "toggle1", needsDelay: true, needsToggle: true },
+      { name: "Button 2 Signal", key: "signal2", delayKey: "delay2", toggleKey: "toggle2", needsDelay: true, needsToggle: true }
+    ]
+  },
+  "ThreeButton": {
+    backendType: "ThreeButton Remote",
+    signals: [
+      { name: "Button 1 Signal", key: "signal1", delayKey: "delay1", toggleKey: "toggle1", needsDelay: true, needsToggle: true },
+      { name: "Button 2 Signal", key: "signal2", delayKey: "delay2", toggleKey: "toggle2", needsDelay: true, needsToggle: true },
+      { name: "Button 3 Signal", key: "signal3", delayKey: "delay3", toggleKey: "toggle3", needsDelay: true, needsToggle: true }
+    ]
+  },
+  "FourButton": {
+    backendType: "FourButton Remote",
+    signals: [
+      { name: "Button 1 Signal", key: "signal1", delayKey: "delay1", toggleKey: "toggle1", needsDelay: true, needsToggle: true },
+      { name: "Button 2 Signal", key: "signal2", delayKey: "delay2", toggleKey: "toggle2", needsDelay: true, needsToggle: true },
+      { name: "Button 3 Signal", key: "signal3", delayKey: "delay3", toggleKey: "toggle3", needsDelay: true, needsToggle: true },
+      { name: "Button 4 Signal", key: "signal4", delayKey: "delay4", toggleKey: "toggle4", needsDelay: true, needsToggle: true }
+    ]
+  }
+};
+
+function getTypeKeyFromBackendType(backendType) {
+  for (const [key, config] of Object.entries(sensorTypeConfigs)) {
+    if (config.backendType === backendType) {
+      return key;
+    }
+  }
+  return "OpenClose";
+}
+
+function renderSensors(sensors) 
+{
+  list.innerHTML = "";
+  if (!sensors || sensors.length === 0) {
+    sensors = [emptySensor()];
+  }
+
+  sensors.forEach((s, i) => {
+    let row = document.createElement("div");
+    row.className = "sensor";
+    row.dataset.index = i;
+
+    const frontendType = getTypeKeyFromBackendType(s.type);
+
+    let signalGroupsHTML = "";
+    Object.keys(sensorTypeConfigs).forEach(type => {
+      const config = sensorTypeConfigs[type];
+      const isVisible = frontendType === type;
+
+      signalGroupsHTML += `<div class="signal-type-group ${isVisible ? '' : 'hidden'}" data-type="${type}">`;
+
+      config.signals.forEach(signal => {
+        // Nur für sichtbare Gruppe echte Werte verwenden, sonst leer lassen
+        const signalValue = isVisible ? (s[signal.key] !== undefined ? s[signal.key] : "") : "";
+
+        let delayValue = "";
+        if (isVisible && s[signal.delayKey] !== undefined && s[signal.delayKey] !== null && !isNaN(s[signal.delayKey])) {
+          delayValue = s[signal.delayKey];
+        }
+
+        const delayHTML = signal.needsDelay
+          ? `<label>Delay (s): <input type="number" class="${signal.delayKey}" value="${delayValue}" min="0" step="0.1" placeholder="No delay"></label>`
+          : `<input type="hidden" class="${signal.delayKey}" value="">`;
+
+        const toggleValue = isVisible ? (s[signal.toggleKey] === true || s[signal.toggleKey] === "true") : false;
+
+        const toggleHTML = signal.needsToggle
+          ? `<label>Mode:
+              <select class="${signal.toggleKey}">
+                <option value="false" ${!toggleValue ? "selected" : ""}>re-trigger</option>
+                <option value="true" ${toggleValue ? "selected" : ""}>toggle</option>
+              </select>
+            </label>`
+          : `<input type="hidden" class="${signal.toggleKey}" value="false">`;
+
+        signalGroupsHTML += `
+          <div class="signal-group">
+            <h4>${signal.name}</h4>
+            <div class="signal-inputs">
+              <label>Value: <input type="number" class="${signal.key}" value="${signalValue}"></label>
+              ${delayHTML}
+              ${toggleHTML}
+            </div>
+          </div>
+        `;
+      });
+
+      signalGroupsHTML += "</div>";
+    });
+
+    row.innerHTML = `
+      <b>Sensor ${i + 1}</b><br>
+      <label style="display: inline-flex; align-items: center;">
+        <input type="checkbox" class="active" ${s.active ? "checked" : ""}>
+        <span style="margin-left: 0.5em;">activated</span>
+      </label>
+      <label>Type:
+        <select class="type" onchange="updateSensorTypeVisibility(${i})">
+          <option value="OpenClose" ${frontendType === "OpenClose" ? "selected" : ""}>OpenClose Sensor</option>
+          <option value="OneButton" ${frontendType === "OneButton" ? "selected" : ""}>OneButton Remote</option>
+          <option value="TwoButton" ${frontendType === "TwoButton" ? "selected" : ""}>TwoButton Remote</option>
+          <option value="ThreeButton" ${frontendType === "ThreeButton" ? "selected" : ""}>ThreeButton Remote</option>
+          <option value="FourButton" ${frontendType === "FourButton" ? "selected" : ""}>FourButton Remote</option>
+        </select>
+      </label>
+      <label>Name: <input type="text" class="name" value="${s.name || ""}"></label>
+      <label>homee ID: <input type="number" class="homeeID" min="1" max="65535" value="${s.homeeID || ""}"></label>
+      <label>Address (hex): <input type="text" class="address" value="${(s.address ?? 0).toString(16)}" pattern="[0-9a-fA-F]{1,8}" title="Hex value"></label>
+
+      ${signalGroupsHTML}
+
+      <button onclick="addSensor(${i})" class="btn-gray">+</button>
+      ${i > 0 ? `<button onclick="removeSensor(${i})" class="btn-gray">-</button>` : ""}
+      <hr>
+    `;
+    list.appendChild(row);
+  });
+}
+
+
+function updateSensorTypeVisibility(sensorIndex) {
+  const sensorRow = document.querySelector(`[data-index="${sensorIndex}"]`);
+  const typeSelect = sensorRow.querySelector('.type');
+  const selectedType = typeSelect.value;
+  
+  sensorRow.querySelectorAll('.signal-type-group').forEach(group => {
+    group.classList.add('hidden');
+  });
+  
+  const selectedGroup = sensorRow.querySelector(`[data-type="${selectedType}"]`);
+  if (selectedGroup) {
+    selectedGroup.classList.remove('hidden');
+  }
+}
+
+// Function to get proper default values based on sensor type and signal
+function getDefaultSignalValue(sensorType, signalKey) {
+  // For OpenClose sensors
+  if (sensorType === "OpenClose") {
+    switch (signalKey) {
+      case "signal1": return 6;   // Open signal default
+      case "signal2": return 9;   // Close signal default
+      case "signal3": return -1;  // Alarm signal not used
+      case "signal4": return 13;  // Battery signal default
+    }
+  }
+  
+  // For button remotes, only used signals get non-zero defaults
+  const config = sensorTypeConfigs[sensorType];
+  if (config && config.signals.some(s => s.key === signalKey)) {
+    return 0; // Used signals default to 0 for button remotes
+  }
+  
+  return 0; // Unused signals default to 0
+}
+
+// Create proper empty sensor based on type
+function emptySensor(type = "OpenClose") {
+  const config = sensorTypeConfigs[type];
+  const sensor = {
+    active: true,
+    name: "",
+    homeeID: 0,
+    type: config ? config.backendType : "OpenClose Sensor",
+    address: 0,
+    signal1: getDefaultSignalValue(type, "signal1"),
+    signal2: getDefaultSignalValue(type, "signal2"), 
+    signal3: getDefaultSignalValue(type, "signal3"),
+    signal4: getDefaultSignalValue(type, "signal4"),
+    delay1: null,
+    delay2: null,
+    delay3: null,
+    delay4: null,
+    toggle1: false,
+    toggle2: false,
+    toggle3: false,
+    toggle4: false
+  };
+  
+  console.log("Created empty sensor:", sensor);
+  return sensor;
+}
+
+
+
+function collectSensors()
+{
+  const sensors = [];
+  document.querySelectorAll(".sensor").forEach(s => {
+    const frontendType = s.querySelector(".type").value;
+    const backendType = sensorTypeConfigs[frontendType]?.backendType || "OpenClose Sensor";
+    const addressStr = s.querySelector(".address").value.trim();
+    const addressValue = addressStr ? parseInt(addressStr, 16) : 0;
+    
+    const sensorData = {
+      active: s.querySelector(".active").checked,
+      name: s.querySelector(".name").value.trim(),
+      homeeID: parseInt(s.querySelector(".homeeID").value) || 0,
+      type: backendType,
+      address: addressValue
+    };
+
+    // Nur aus der aktuell sichtbaren Signal-Gruppe lesen
+    const activeGroup = s.querySelector('.signal-type-group:not(.hidden)');
+    
+    if (activeGroup) {
+      const config = sensorTypeConfigs[frontendType];
+      if (config) {
+        config.signals.forEach(signal => {
+          // Signal value - aus der aktiven Gruppe lesen
+          const signalInput = activeGroup.querySelector(`.${signal.key}`);
+          if (signalInput) {
+            const value = signalInput.value.trim();
+            sensorData[signal.key] = value !== "" ? parseInt(value) : 0;
+          } else {
+            sensorData[signal.key] = 0;
+          }
+          
+          // Delay value - aus der aktiven Gruppe lesen
+          const delayInput = activeGroup.querySelector(`.${signal.delayKey}`);
+          if (delayInput) {
+            const delay = delayInput.value.trim();
+            if (delay !== "" && delay !== "NaN" && !isNaN(parseFloat(delay))) {
+              sensorData[signal.delayKey] = parseFloat(delay);
+            } else {
+              sensorData[signal.delayKey] = null;
+            }
+          } else {
+            sensorData[signal.delayKey] = null;
+          }
+          
+          // Toggle value - aus der aktiven Gruppe lesen
+          const toggleInput = activeGroup.querySelector(`.${signal.toggleKey}`);
+          if (toggleInput) {
+            if (signal.needsToggle) {
+              sensorData[signal.toggleKey] = toggleInput.value === "true";
+            } else {
+              sensorData[signal.toggleKey] = false;
+            }
+          } else {
+            sensorData[signal.toggleKey] = false;
+          }
+        });
+      }
+    }
+    
+    console.log(`Collected sensor ${sensors.length + 1}:`, sensorData);
+    sensors.push(sensorData);
+  });
+  return sensors;
+}
+
+
+function addSensor(index) {
+  let sensors = collectSensors();
+  // Use the same type as the sensor we're adding after
+  const currentSensorType = getTypeKeyFromBackendType(sensors[index].type);
+  sensors.splice(index + 1, 0, emptySensor(currentSensorType));
+  renderSensors(sensors);
+  
+  // Ensure visibility is updated for all sensors after render
+  setTimeout(() => {
+    document.querySelectorAll('.sensor').forEach((sensorRow, idx) => {
+      updateSensorTypeVisibility(idx);
+    });
+  }, 0);
+}
+
+function removeSensor(index) {
+  let sensors = collectSensors();
+  if (sensors.length <= 1) return;
+  sensors.splice(index, 1);
+  renderSensors(sensors);
+}
+
+function saveConfig() {
+  const data = {
+    system: { 
+      cfgInSTA: document.getElementById("cfgInSTA").checked,
+      cfgInStandardMode: document.getElementById("cfgInSTA").checked
+    },
+    wifi: {
+      ssid: document.getElementById("ssid").value,
+      pw: document.getElementById("pw").value,
+      password: document.getElementById("pw").value,
+      ip: document.getElementById("ip").value,
+      gw: document.getElementById("gw").value,
+      mask: document.getElementById("mask").value
+    },
+    sensors: collectSensors()
+  };
+
+  console.log("Saving config:", JSON.stringify(data, null, 2));
+
+  fetch("/config", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data)
+  })
+  .then(response => {
+    if (response.ok) {
+      alert("Configuration saved successfully.");
+    } else {
+      return response.text().then(errorText => {
+        console.error("Save failed with response:", errorText);
+        alert("Failed to save configuration: " + errorText);
+      });
+    }
+  })
+  .catch(error => {
+    console.error("Save error:", error);
+    alert("Failed to save configuration: " + error.message);
+  });
+}
+
+fetch("/config")
+  .then(res => {
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    }
+    return res.json();
+  })
+  .then(json => {
+    console.log("Loaded config:", json);
+    
+    document.getElementById("fwver").textContent = json.fw || "?";
+    document.getElementById("cfgInSTA").checked = json.system?.cfgInSTA || json.system?.cfgInStandardMode || false;
+    document.getElementById("ssid").value = json.wifi?.ssid || "";
+    document.getElementById("pw").value = json.wifi?.password || json.wifi?.pw || "";
+    document.getElementById("ip").value = json.wifi?.ip || "";
+    document.getElementById("gw").value = json.wifi?.gw || "";
+    document.getElementById("mask").value = json.wifi?.mask || "";
+    renderSensors(json.sensors || []);
+    
+    // FIXED: Ensure visibility is set correctly after initial load
+    setTimeout(() => {
+      document.querySelectorAll('.sensor').forEach((sensorRow, idx) => {
+        updateSensorTypeVisibility(idx);
+      });
+    }, 0);
+  })
+  .catch(error => {
+    console.error("Config load error:", error);
+    alert("Failed to load configuration: " + error.message);
+    renderSensors([]);
+  });
+
+document.getElementById("cfgInSTA").addEventListener("change", () => {
+  fetch("/updateSystem", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ 
+      cfgInSTA: document.getElementById("cfgInSTA").checked,
+      cfgInStandardMode: document.getElementById("cfgInSTA").checked
+    })
+  }).catch(error => {
+    console.error("System update error:", error);
+  });
+});
+
+function updateSignalDisplay(data) {
+  document.getElementById("sensorAddress").value = data.sensorAddress || "";
+  document.getElementById("sensorData").value = data.sensorData || "";
+  document.getElementById("binary").value = data.binary || "";
+  document.getElementById("timestamp").textContent = new Date().toLocaleString();
+}
+
+setInterval(() => {
+  fetch("/lastsignal")
+    .then(res => {
+      if (res.ok) {
+        return res.json();
+      }
+    })
+    .then(data => {
+      if (data) {
+        updateSignalDisplay(data);
+      }
+    })
+    .catch(error => {
+      console.log("Signal polling error:", error);
+    });
+}, 2000);
+</script>
+</body>
+</html>
