@@ -90,11 +90,11 @@ assebled PCB:
 fully integraged:
 ![fully integrated](EV1527_for_homee__PCB2.jpg)
 
-Sensors:
+used sensors:
 ![sensors](sensors.jpg))
 
 
 ---
 
-For updates and source code, refer to the [GitHub repository](#).
+For updates and source code, refer to the [GitHub repository](https://github.com/Oxi75/WindowSensor_EV1527).
 
