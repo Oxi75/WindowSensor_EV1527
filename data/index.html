@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>EV1527 for homee - configuration (read only)</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 20px;
+      max-width: 900px;
+    }
+    .section {
+      border: 1px solid #ccc;
+      padding: 15px;
+      margin-bottom: 20px;
+      border-radius: 8px;
+    }
+    .section:nth-of-type(1) {
+      background: #f3f8ff;
+    }
+    .section:nth-of-type(2) {
+      background: #f9f3ff;
+    }
+    .section:nth-of-type(3) {
+      background: #f3fff4;
+    }
+    .section:nth-of-type(4) {
+      background: #fffaf3;
+    }
+    .section h2 {
+      margin-top: 0;
+    }
+    label {
+      display: block;
+      margin: 5px 0;
+    }
+    input, select {
+      padding: 5px;
+      margin-top: 2px;
+      width: 100%;
+      box-sizing: border-box;
+      background-color: #f8f9fa;
+      border: 1px solid #dee2e6;
+      color: #495057;
+    }
+    button {
+      padding: 8px 16px;
+      background-color: #007bff;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+    button:hover {
+      background-color: #0056b3;
+    }
+    .sensor {
+      margin-bottom: 10px;
+      border-bottom: 1px dashed #ccc;
+      padding-bottom: 10px;
+    }
+    .timestamp {
+      font-size: 0.9em;
+      color: #666;
+    }
+    .signal-group {
+      margin: 10px 0;
+      padding: 10px;
+      background: #f0f0f0;
+      border-radius: 5px;
+    }
+    .signal-group h4 {
+      margin: 0 0 10px 0;
+      font-size: 1em;
+    }
+    .signal-inputs {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+    .signal-inputs input {
+      width: auto;
+      flex: 1;
+    }
+    .signal-inputs label {
+      margin: 0;
+      flex: 1;
+    }
+    .hidden {
+      display: none;
+    }
+    .checkbox-row {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5em;
+      margin-bottom: 10px;
+    }
+    .checkbox-row input[type="checkbox"] {
+      margin: 0;
+    }
+    .checkbox-row label {
+      margin: 0;
+      white-space: nowrap;
+    }
+    .readonly-notice {
+      background-color: #fff3cd;
+      border: 1px solid #ffeaa7;
+      color: #856404;
+      padding: 15px;
+      border-radius: 5px;
+      margin-bottom: 20px;
+      line-height: 1.5;
+    }
+    .readonly-notice code {
+      background-color: #f8f9fa;
+      padding: 2px 4px;
+      border-radius: 3px;
+      font-family: monospace;
+      color: #495057;
+    }
+  </style>
+</head>
+<body>
+  <div class="readonly-notice">
+    📖 <strong>Read-Only Mode:</strong> This configuration view is for monitoring purposes only. No changes can be made to the system.<br><br>
+    
+    <strong>⚙️ To enter configuration mode:</strong><br>
+    Press the config button while the system starts. A new WiFi Access Point will become available with the following connection details:<br><br>
+    
+    <strong>WiFi Connection:</strong><br>
+    • SSID: <code>EV1527 for homee</code><br>
+    • Password: <code>12345678</code><br>
+    • IP Address: <code>192.168.4.1</code><br>
+    • Subnet Mask: <code>255.255.255.0</code><br><br>
+    
+    After connecting, open your browser and navigate to: <strong><code>http://192.168.4.1</code></strong>
+  </div>
+  
+  <h1>EV1527 for homee - configuration (read only)</h1>
+
+  <div class="section">
+    <h2>System Information</h2>
+    <p><b>Firmware:</b> <span id="fwver">?</span></p>
+    <div class="checkbox-row">
+      <input type="checkbox" id="cfgInSTA" disabled>
+      <label for="cfgInSTA">Configuration in standard mode</label>
+    </div>
+    <div>
+      <button onclick="restartDevice()">Restart Device</button>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>WiFi Configuration</h2>
+    <label>SSID: <input type="text" id="ssid" readonly></label>
+    <label>Gateway IP: <input type="text" id="gw" readonly></label>
+    <label>SubNet Mask: <input type="text" id="mask" readonly></label>
+    <label>Client IP: <input type="text" id="ip" readonly></label>
+  </div>
+
+  <div class="section">
+    <h2>Last Received Signal</h2>
+    <label>Sensor Address (hex): <input type="text" id="sensorAddress" readonly></label>
+    <label>Value: <input type="text" id="sensorData" readonly></label>
+    <label>Binary: <input type="text" id="binary" readonly></label>
+    <p class="timestamp" id="timestamp"></p>
+  </div>
+
+  <div class="section">
+    <h2>Sensor Configuration</h2>
+    <div id="sensorList"></div>
+  </div>
+
+<script>
+// Restart device function
+function restartDevice() {
+  if (confirm('Device will restart. Continue?')) {
+    fetch('/restart', { method: 'POST' })
+      .then(() => alert('Device is restarting...'))
+      .catch(() => alert('Restart command sent'));
+  }
+}
+
+let list = document.getElementById("sensorList");
+
+const sensorTypeConfigs = {
+  "OpenClose": {
+    backendType: "OpenClose Sensor",
+    signals: [
+      { name: "Open Signal", key: "signal1", delayKey: "delay1", needsDelay: false },
+      { name: "Close Signal", key: "signal2", delayKey: "delay2", needsDelay: false },
+      { name: "Alarm Signal", key: "signal3", delayKey: "delay3", needsDelay: true },
+      { name: "Battery Signal", key: "signal4", delayKey: "delay4", needsDelay: true }
+    ]
+  },
+  "OneButton": {
+    backendType: "OneButton Remote",
+    signals: [
+      { name: "Button Signal", key: "signal1", delayKey: "delay1", needsDelay: true }
+    ]
+  },
+  "TwoButton": {
+    backendType: "TwoButton Remote",
+    signals: [
+      { name: "Button 1 Signal", key: "signal1", delayKey: "delay1", needsDelay: true },
+      { name: "Button 2 Signal", key: "signal2", delayKey: "delay2", needsDelay: true }
+    ]
+  },
+  "ThreeButton": {
+    backendType: "ThreeButton Remote",
+    signals: [
+      { name: "Button 1 Signal", key: "signal1", delayKey: "delay1", needsDelay: true },
+      { name: "Button 2 Signal", key: "signal2", delayKey: "delay2", needsDelay: true },
+      { name: "Button 3 Signal", key: "signal3", delayKey: "delay3", needsDelay: true }
+    ]
+  },
+  "FourButton": {
+    backendType: "FourButton Remote",
+    signals: [
+      { name: "Button 1 Signal", key: "signal1", delayKey: "delay1", needsDelay: true },
+      { name: "Button 2 Signal", key: "signal2", delayKey: "delay2", needsDelay: true },
+      { name: "Button 3 Signal", key: "signal3", delayKey: "delay3", needsDelay: true },
+      { name: "Button 4 Signal", key: "signal4", delayKey: "delay4", needsDelay: true }
+    ]
+  }
+};
+
+function getTypeKeyFromBackendType(backendType) {
+  for (const [key, config] of Object.entries(sensorTypeConfigs)) {
+    if (config.backendType === backendType) {
+      return key;
+    }
+  }
+  return "OpenClose";
+}
+
+function renderSensors(sensors) {
+  list.innerHTML = "";
+  if (!sensors || sensors.length === 0) {
+    list.innerHTML = "<p>No sensors configured</p>";
+    return;
+  }
+
+  sensors.forEach((s, i) => {
+    let row = document.createElement("div");
+    row.className = "sensor";
+    row.dataset.index = i;
+    
+    const frontendType = getTypeKeyFromBackendType(s.type);
+    
+    let signalGroupsHTML = "";
+    const config = sensorTypeConfigs[frontendType];
+    if (config) {
+      config.signals.forEach(signal => {
+        const signalValue = s[signal.key] ?? 0;
+        let delayValue = "";
+        if (s[signal.delayKey] !== undefined && s[signal.delayKey] !== null && !isNaN(s[signal.delayKey])) {
+          delayValue = s[signal.delayKey];
+        }
+        
+        const delayHTML = signal.needsDelay ? 
+          `<label>Delay (s): <input type="text" value="${delayValue || 'No delay'}" readonly></label>` : "";
+        
+        signalGroupsHTML += `
+          <div class="signal-group">
+            <h4>${signal.name}</h4>
+            <div class="signal-inputs">
+              <label>Value: <input type="text" value="${signalValue}" readonly></label>
+              ${delayHTML}
+            </div>
+          </div>
+        `;
+      });
+    }
+    
+    const statusText = s.active ? "Active" : "Inactive";
+    const statusColor = s.active ? "#28a745" : "#dc3545";
+    
+    row.innerHTML = `
+      <b>Sensor ${i + 1}</b><br>
+      <label style="display: inline-flex; align-items: center;">
+        <span style="color: ${statusColor}; font-weight: bold;">Status: ${statusText}</span>
+      </label>
+      <label>Type: <input type="text" value="${s.type || 'Unknown'}" readonly></label>
+      <label>Name: <input type="text" value="${s.name || 'Unnamed'}" readonly></label>
+      <label>homee ID: <input type="text" value="${s.homeeID || 'Not set'}" readonly></label>
+      <label>Address (hex): <input type="text" value="${(s.address ?? 0).toString(16).toUpperCase()}" readonly></label>
+      
+      ${signalGroupsHTML}
+      
+      <hr>
+    `;
+    list.appendChild(row);
+  });
+}
+
+function updateSignalDisplay(data) {
+  document.getElementById("sensorAddress").value = data.sensorAddress || "";
+  document.getElementById("sensorData").value = data.sensorData || "";
+  document.getElementById("binary").value = data.binary || "";
+  document.getElementById("timestamp").textContent = new Date().toLocaleString();
+}
+
+// Load initial configuration
+fetch("/config")
+  .then(res => {
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    }
+    return res.json();
+  })
+  .then(json => {
+    console.log("Loaded config:", json);
+    
+    document.getElementById("fwver").textContent = json.fw || "Unknown";
+    document.getElementById("cfgInSTA").checked = json.system?.cfgInSTA || json.system?.cfgInStandardMode || false;
+    document.getElementById("ssid").value = json.wifi?.ssid || "Not configured";
+    document.getElementById("ip").value = json.wifi?.ip || "Not configured";
+    document.getElementById("gw").value = json.wifi?.gw || "Not configured";
+    document.getElementById("mask").value = json.wifi?.mask || "Not configured";
+    renderSensors(json.sensors || []);
+  })
+  .catch(error => {
+    console.error("Config load error:", error);
+    document.getElementById("fwver").textContent = "Error loading";
+    document.getElementById("ssid").value = "Error loading configuration";
+    list.innerHTML = "<p style='color: red;'>Error loading sensor configuration</p>";
+  });
+
+// Poll for signal updates
+setInterval(() => {
+  fetch("/lastsignal")
+    .then(res => {
+      if (res.ok) {
+        return res.json();
+      }
+    })
+    .then(data => {
+      if (data) {
+        updateSignalDisplay(data);
+      }
+    })
+    .catch(error => {
+      console.log("Signal polling error:", error);
+    });
+}, 2000);
+</script>
+</body>
+</html>

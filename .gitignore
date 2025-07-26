@@ -30,3 +30,17 @@
 *.exe
 *.out
 *.app
+
+#backups
+*.bak
+
+#Folders
+.pio/
+.vscode/
+
+#archives
+*.zip
+*.7z
+
+# others
+~*.*
