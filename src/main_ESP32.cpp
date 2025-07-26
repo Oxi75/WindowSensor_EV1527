@@ -3,15 +3,15 @@
   
   This program monitors up to 32 window sensors based on the EV1527 chip
   and connects to the homee smart home system.
+  The sensor signals are received via I2C and processed to update the homee nodes.
   
   Multiple operation modes:
   1. Configuration mode (AP mode for setup)
   2. Normal mode (sensor monitoring and homee integration)
   
-  Hardware: MH-ET Live ESP32 DevKit
-  
+  Hardware: ESP32-C3
+
   Libraries:
-  - RCSwitch: https://github.com/sui77/rc-switch/
   - homee-api-esp32: https://github.com/Oxi75/homee-api-esp32
 */
 
@@ -38,7 +38,6 @@ String FW_VERSION_STR = String(FW_VERSION_ESP, 2);
 #define CANodeProfileOpenCloseSensor 2000
 #define CAAttributeTypeOpenClose 14
 #define CAAttributeTypeAlarm 108
-//#define CAAttributeTypeBatteryLevel 8
 #define CAAttributeTypeBatteryLowAlarm 69
 #define CAAttributeTypeOnOff 1
 #define CAAttributeTypeFirmwareRevision 44

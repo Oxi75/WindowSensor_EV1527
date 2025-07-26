@@ -4,6 +4,12 @@
 	(generator_version "9.0")
 	(uuid "dca22e2e-449e-42c1-84ee-930023faa022")
 	(paper "A4")
+	(title_block
+		(title "EV1527 433MHz for homee")
+		(date "2025-07-26")
+		(rev "1.1")
+		(company "Andreas Schmack (C)")
+	)
 	(lib_symbols
 		(symbol "Andreas_components:TXB0104D_LevelConverterModule"
 			(exclude_from_sim no)

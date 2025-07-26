@@ -37,3 +37,10 @@
 #Folders
 .pio/
 .vscode/
+
+#archives
+*.zip
+*.7z
+
+# others
+~*.*

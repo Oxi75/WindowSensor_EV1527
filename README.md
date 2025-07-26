@@ -16,8 +16,9 @@ This project enables the integration of affordable 433 MHz window sensors and 
 ## Installation
 
 1. Assemble the hardware according to the schematic (ESP32 + EV1527 receiver).
-2. Flash the firmware to the ESP32 using [PlatformIO](https://platformio.org/).
-3. Connect the device to Wi-Fi and configure it via the web interface.
+2. compile and flash the nano firmware [PlatformIO](https://platformio.org/).
+3. compile and flash the ESP32 firmware 
+4. Connect the device to Wi-Fi and configure it via the web interface.
 
 ## Directory Structure
 
@@ -25,6 +26,9 @@ This project enables the integration of affordable 433 MHz window sensors and 
 - `include/` – Header files
 - `data/` – Web interface files (e.g., configuration)
 - `examples/` – Example projects
+- `doku/` – user manual
+- `KiCad/` – Schematics and PCB layout
+
 
 ## Notes
 

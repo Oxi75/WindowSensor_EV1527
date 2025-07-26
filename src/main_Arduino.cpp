@@ -1,3 +1,16 @@
+/*
+  EV1527 Window Sensor Monitor for homee
+  
+  This program monitors signals coming from an EV1527 chip, filters them and sends them via I2C to a slave device.
+  It can handle multiple sensors and supports a FIFO buffer to manage incoming signals.
+  
+  Hardware: Arduino Nano with 433 MHz receiver module (rbx14 or similar)
+
+  Libraries:
+  - RCSwitch: https://github.com/sui77/rc-switch/
+*/
+
+
 #include <Arduino.h>
 #include <RCSwitch.h>
 #include <Wire.h>
