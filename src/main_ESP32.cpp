@@ -292,11 +292,11 @@ void homee_setup()
       //Attribut Alarm
       na = new nodeAttributes(CAAttributeTypeAlarm);  //CAAttributeTypeAlarm
       na->setName("Alarm");
-      na->setId(AttrID_Sig3);   //unique ID for each sensor
+      na->setId(AttrID_Sig3 | sns);   //unique ID for each sensor
       na->setUnit("");  
       na->setMinimumValue(0);
       na->setMaximumValue(1); 
-      na->setCurrentValue(0);  //default value
+      na->setCurrentValue(0);     //default value
       na->setEditable(false);
       na->setCallback(nullptr);
       n->AddAttributes(na);       //set attribute to node
@@ -304,7 +304,7 @@ void homee_setup()
       //Attribut Batterie
       na = new nodeAttributes(CAAttributeTypeBatteryLowAlarm);
       na->setName("Battery Status");
-      na->setId(AttrID_Sig4 | sns << 1); //unique ID for each sensor
+      na->setId(AttrID_Sig4 | sns); //unique ID for each sensor
       na->setUnit("");
       na->setMinimumValue(0);  //0 = Battery OK, 1 = Battery low
       na->setMaximumValue(1); 
