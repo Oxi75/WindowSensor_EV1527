@@ -103,11 +103,18 @@ void setup()
     Wire.begin(I2C_SLAVE_ADDRESS);  // Initialize I2C as slave with specified address
     Wire.onRequest(requestEvent);   // Register request handler
 
+    Serial.println("433MHz module power on sequence started (off (500ms) -> on)");
+    pinMode(LED_BUILTIN, OUTPUT);
+    digitalWrite(LED_BUILTIN, LOW); // turn off built-in LED to indicate power off
+
     pinMode(DOUT_POWER, OUTPUT);
     digitalWrite(DOUT_POWER, LOW);
+
     delay(500);
     digitalWrite(DOUT_POWER, HIGH);
+    digitalWrite(LED_BUILTIN, HIGH); // turn on built-in LED to indicate power on
     delay(500);
+    digitalWrite(LED_BUILTIN, LOW); // turn off built-in LED - standard mode
 
     mySwitch.enableReceive(digitalPinToInterrupt(DIN_RECEIVER));
 }
@@ -131,6 +138,10 @@ void loop()
     if (mySwitch.available())
     {
         unsigned long code = mySwitch.getReceivedValue();
+
+        // Visualize every decoded frame (even filtered duplicates) by toggling
+        // the built-in LED, so reception can be checked without serial access.
+        digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
 
         if ((code != lastReceivedCode) || (now - lastReceivedTime) > FILTER_TIME_MS)
         {   
